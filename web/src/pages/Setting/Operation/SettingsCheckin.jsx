@@ -26,6 +26,7 @@ import {
   showError,
   showSuccess,
   showWarning,
+  renderQuotaWithPrompt,
 } from '../../../helpers';
 
 export default function SettingsCheckin(props) {
@@ -120,7 +121,7 @@ export default function SettingsCheckin(props) {
                   step={100}
                   min={0}
                   suffix={'Token'}
-                  extraText={t('固定模式下每次签到奖励的额度')}
+                  extraText={t('固定模式下每次签到奖励的额度') + (inputs['checkin_setting.checkin_quota'] ? ' ' + renderQuotaWithPrompt(parseInt(inputs['checkin_setting.checkin_quota']) || 0) : '')}
                   placeholder={t('例如：1000')}
                   onChange={(value) =>
                     setInputs({
@@ -154,7 +155,7 @@ export default function SettingsCheckin(props) {
                   step={100}
                   min={0}
                   suffix={'Token'}
-                  extraText={t('随机模式下的最小奖励额度')}
+                  extraText={t('随机模式下的最小奖励额度') + (inputs['checkin_setting.checkin_min_quota'] ? ' ' + renderQuotaWithPrompt(parseInt(inputs['checkin_setting.checkin_min_quota']) || 0) : '')}
                   placeholder={t('例如：500')}
                   onChange={(value) =>
                     setInputs({
@@ -171,7 +172,7 @@ export default function SettingsCheckin(props) {
                   step={100}
                   min={0}
                   suffix={'Token'}
-                  extraText={t('随机模式下的最大奖励额度')}
+                  extraText={t('随机模式下的最大奖励额度') + (inputs['checkin_setting.checkin_max_quota'] ? ' ' + renderQuotaWithPrompt(parseInt(inputs['checkin_setting.checkin_max_quota']) || 0) : '')}
                   placeholder={t('例如：2000')}
                   onChange={(value) =>
                     setInputs({

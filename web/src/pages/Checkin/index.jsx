@@ -28,7 +28,7 @@ import {
 } from '@douyinfe/semi-ui';
 import { IconGift, IconHistory } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
-import { API, showError, showSuccess } from '../../helpers';
+import { API, showError, showSuccess, renderQuota } from '../../helpers';
 
 const { Title, Text } = Typography;
 
@@ -75,7 +75,7 @@ export default function Checkin() {
     try {
       const res = await API.post('/api/user/checkin');
       if (res.data.success) {
-        showSuccess(t('签到成功！获得 {{quota}} Token', { quota: res.data.data.quota }));
+        showSuccess(t('签到成功！获得') + ' ' + renderQuota(res.data.data.quota));
         fetchStatus();
         fetchHistory();
       } else {
@@ -103,7 +103,7 @@ export default function Checkin() {
       title: t('获得额度'),
       dataIndex: 'quota',
       key: 'quota',
-      render: (quota) => `${quota} Token`,
+      render: (quota) => renderQuota(quota),
     },
   ];
 
@@ -140,7 +140,7 @@ export default function Checkin() {
               </Text>
               <br />
               <Text style={{ fontSize: '16px' }}>
-                {t('累计获得')}: <strong>{status.total_quota}</strong> Token
+                {t('累计获得')}: <strong>{renderQuota(status.total_quota)}</strong>
               </Text>
             </div>
             <Button
