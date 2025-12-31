@@ -29,15 +29,18 @@ const (
 	HashPrefixLen = 16
 )
 
-// 哈希层级长度
-var hashLevels = []int{8, 64, 512, 4096}
+// 哈希层级长度: 8, 64, 512, 4096, 32768, 131072 (128k)
+var hashLevels = []int{8, 64, 512, 4096, 32768, 131072}
+
+// HashLevelCount 哈希层级数量
+const HashLevelCount = 6
 
 // TaskSlot 单个任务槽
 type TaskSlot struct {
 	UserID     int
 	Username   string
 	UpdatedAt  int64    // Unix 秒
-	HashPrefix [4][HashPrefixLen]byte // 4个层级的哈希前缀
+	HashPrefix [HashLevelCount][HashPrefixLen]byte // 6个层级的哈希前缀
 }
 
 // ActiveTaskSlotManager 活跃任务槽管理器
@@ -66,8 +69,8 @@ func GetActiveTaskSlotManager() *ActiveTaskSlotManager {
 }
 
 // computeHashPrefixes 计算多级哈希前缀
-func computeHashPrefixes(data string) [4][HashPrefixLen]byte {
-	var result [4][HashPrefixLen]byte
+func computeHashPrefixes(data string) [HashLevelCount][HashPrefixLen]byte {
+	var result [HashLevelCount][HashPrefixLen]byte
 	for i, level := range hashLevels {
 		// 取 data 的前 level 个字符（或全部）
 		end := level
@@ -81,8 +84,8 @@ func computeHashPrefixes(data string) [4][HashPrefixLen]byte {
 }
 
 // matchHashPrefix 检查是否有任意一级哈希匹配
-func matchHashPrefix(a, b [4][HashPrefixLen]byte) bool {
-	for i := 0; i < 4; i++ {
+func matchHashPrefix(a, b [HashLevelCount][HashPrefixLen]byte) bool {
+	for i := 0; i < HashLevelCount; i++ {
 		if bytes.Equal(a[i][:], b[i][:]) {
 			return true
 		}
@@ -148,7 +151,7 @@ func (m *ActiveTaskSlotManager) RecordTask(userID int, username string, data str
 }
 
 // reuseSlot 复用一个槽
-func (m *ActiveTaskSlotManager) reuseSlot(idx int, newUserID int, username string, now int64, hashPrefixes [4][HashPrefixLen]byte) {
+func (m *ActiveTaskSlotManager) reuseSlot(idx int, newUserID int, username string, now int64, hashPrefixes [HashLevelCount][HashPrefixLen]byte) {
 	oldSlot := m.slots[idx]
 	oldUserID := oldSlot.UserID
 
