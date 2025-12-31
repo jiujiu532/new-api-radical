@@ -72,34 +72,36 @@ func GetActiveTaskSlotManager() *ActiveTaskSlotManager {
 	return activeTaskManager
 }
 
-// computeHashPrefixes 计算多级哈希前缀，只计算需要匹配的层级
+// computeHashPrefixes 计算多级哈希前缀（增量计算，避免重复处理）
 // 返回哈希数组和最高层级索引
 func computeHashPrefixes(data string) ([HashLevelCount][HashPrefixLen]byte, int) {
 	var result [HashLevelCount][HashPrefixLen]byte
 	dataLen := len(data)
-	
-	// 先确定最高层级
 	maxLevelIdx := 0
+	
+	prevEnd := 0
+	h := sha256.New()
+	
 	for i, level := range hashLevels {
-		if dataLen >= level {
-			maxLevelIdx = i
-		}
-	}
-	
-	// 只计算需要匹配的层级（从最高级往下 MatchLevelCount 级）
-	startLevel := maxLevelIdx - MatchLevelCount + 1
-	if startLevel < 0 {
-		startLevel = 0
-	}
-	
-	for i := startLevel; i <= maxLevelIdx; i++ {
-		level := hashLevels[i]
 		end := level
 		if end > dataLen {
 			end = dataLen
 		}
-		hash := sha256.Sum256([]byte(data[:end]))
-		copy(result[i][:], hash[:HashPrefixLen])
+		
+		// 增量写入：只写入上次结束位置到当前位置的新数据
+		if end > prevEnd {
+			h.Write([]byte(data[prevEnd:end]))
+			prevEnd = end
+		}
+		
+		// 获取当前状态的哈希（不影响后续计算）
+		sum := h.Sum(nil)
+		copy(result[i][:], sum[:HashPrefixLen])
+		
+		// 记录数据长度能覆盖到的最高层级
+		if dataLen >= level {
+			maxLevelIdx = i
+		}
 	}
 	
 	return result, maxLevelIdx
