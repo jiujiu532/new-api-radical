@@ -47,9 +47,6 @@ export const useSidebar = () => {
     console: {
       enabled: true,
       detail: true,
-      model_health: true,
-      user_hourly_calls_rank: true,
-      recent_calls: true,
       token: true,
       log: true,
       midjourney: true,
@@ -64,10 +61,13 @@ export const useSidebar = () => {
       enabled: true,
       channel: true,
       models: true,
+      model_health: true,
+      user_hourly_calls_rank: true,
+      recent_calls: true,
       redemption: true,
       user: true,
-      setting: true,
       fingerprint: true,
+      setting: true,
     },
   };
 

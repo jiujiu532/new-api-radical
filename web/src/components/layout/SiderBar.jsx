@@ -83,24 +83,6 @@ const SiderBar = ({ onNavigate = () => {} }) => {
             : 'tableHiddle',
       },
       {
-        text: t('模型健康度'),
-        itemKey: 'model_health',
-        to: '/console/model-health-hourly',
-        className: isAdmin() ? '' : 'tableHiddle',
-      },
-      {
-        text: t('调用排行'),
-        itemKey: 'user_hourly_calls_rank',
-        to: '/console/user-hourly-calls-rank',
-        className: isAdmin() ? '' : 'tableHiddle',
-      },
-      {
-        text: t('最近调用'),
-        itemKey: 'recent_calls',
-        to: '/console/recent-calls',
-        className: isAdmin() ? '' : 'tableHiddle',
-      },
-      {
         text: t('令牌管理'),
         itemKey: 'token',
         to: '/token',
@@ -186,6 +168,24 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {
+        text: t('模型健康度'),
+        itemKey: 'model_health',
+        to: '/console/model-health-hourly',
+        className: isAdmin() ? '' : 'tableHiddle',
+      },
+      {
+        text: t('调用排行'),
+        itemKey: 'user_hourly_calls_rank',
+        to: '/console/user-hourly-calls-rank',
+        className: isAdmin() ? '' : 'tableHiddle',
+      },
+      {
+        text: t('最近调用'),
+        itemKey: 'recent_calls',
+        to: '/console/recent-calls',
+        className: isAdmin() ? '' : 'tableHiddle',
+      },
+      {
         text: t('兑换码管理'),
         itemKey: 'redemption',
         to: '/redemption',
@@ -198,16 +198,16 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {
-        text: t('系统设置'),
-        itemKey: 'setting',
-        to: '/setting',
-        className: isRoot() ? '' : 'tableHiddle',
-      },
-      {
         text: t('关联追踪'),
         itemKey: 'fingerprint',
         to: '/console/fingerprint',
         className: isAdmin() ? '' : 'tableHiddle',
+      },
+      {
+        text: t('系统设置'),
+        itemKey: 'setting',
+        to: '/setting',
+        className: isRoot() ? '' : 'tableHiddle',
       },
     ];
 
