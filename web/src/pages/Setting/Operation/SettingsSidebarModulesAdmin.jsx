@@ -69,6 +69,7 @@ export default function SettingsSidebarModulesAdmin(props) {
       redemption: true,
       user: true,
       setting: true,
+      fingerprint: true,
     },
   });
 
@@ -129,6 +130,7 @@ export default function SettingsSidebarModulesAdmin(props) {
         redemption: true,
         user: true,
         setting: true,
+        fingerprint: true,
       },
     };
     setSidebarModulesAdmin(defaultModules);
@@ -199,6 +201,7 @@ export default function SettingsSidebarModulesAdmin(props) {
             redemption: true,
             user: true,
             setting: true,
+            fingerprint: true,
           },
         };
         setSidebarModulesAdmin(defaultModules);
@@ -271,6 +274,11 @@ export default function SettingsSidebarModulesAdmin(props) {
           key: 'setting',
           title: t('系统设置'),
           description: t('系统参数配置'),
+        },
+        {
+          key: 'fingerprint',
+          title: t('关联追踪'),
+          description: t('用户设备指纹追踪'),
         },
       ],
     },
