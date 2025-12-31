@@ -62,6 +62,8 @@ func GetRedemption(c *gin.Context) {
 	return
 }
 
+const redemptionKeyMaxLength = 32
+
 func AddRedemption(c *gin.Context) {
 	req := dto.CreateRedemptionRequest{}
 	err := c.ShouldBindJSON(&req)
@@ -128,9 +130,33 @@ func AddRedemption(c *gin.Context) {
 	keys := make([]string, 0, count)
 	keyPrefix := strings.TrimSpace(req.KeyPrefix)
 
+	// 校验前缀长度，确保至少有8个字符用于随机部分
+	const minRandomLength = 8
+	prefixLen := len(keyPrefix)
+	if prefixLen > redemptionKeyMaxLength-minRandomLength {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "兑换码前缀过长，最多允许 " + strconv.Itoa(redemptionKeyMaxLength-minRandomLength) + " 个字符",
+		})
+		return
+	}
+
+	// 计算随机部分的长度
+	randomLength := redemptionKeyMaxLength - prefixLen
+
 	for i := 0; i < count; i++ {
-		// 生成 Key：前缀 + UUID
-		key := keyPrefix + common.GetUUID()
+		// 生成 Key：前缀 + 随机字符串（长度根据前缀动态调整）
+		randomPart, err := common.GenerateRandomCharsKey(randomLength)
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "生成兑换码失败: " + err.Error(),
+				"data":    keys,
+				"keys":    keys,
+			})
+			return
+		}
+		key := keyPrefix + randomPart
 
 		// 确定额度：随机模式或固定模式
 		quota := req.Quota
