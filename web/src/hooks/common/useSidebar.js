@@ -64,6 +64,7 @@ export const useSidebar = () => {
       model_health: true,
       user_hourly_calls_rank: true,
       recent_calls: true,
+      deployment: true,
       redemption: true,
       user: true,
       fingerprint: true,

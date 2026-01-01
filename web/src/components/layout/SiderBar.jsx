@@ -50,6 +50,7 @@ const routerMap = {
   pricing: '/pricing',
   task: '/console/task',
   models: '/console/models',
+  deployment: '/console/deployment',
   playground: '/console/playground',
   personal: '/console/personal',
   fingerprint: '/console/fingerprint',
@@ -190,6 +191,12 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         text: t('最近调用'),
         itemKey: 'recent_calls',
         to: '/console/recent-calls',
+        className: isAdmin() ? '' : 'tableHiddle',
+      },
+      {
+        text: t('模型部署'),
+        itemKey: 'deployment',
+        to: '/deployment',
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {
