@@ -59,7 +59,6 @@ const ActiveTaskRank = lazy(() => import('./pages/ActiveTaskRank'));
 const About = lazy(() => import('./pages/About'));
 const UserAgreement = lazy(() => import('./pages/UserAgreement'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
-const Checkin = lazy(() => import('./pages/Checkin'));
 const Fingerprint = lazy(() => import('./pages/Fingerprint'));
 
 function App() {
@@ -258,16 +257,6 @@ function App() {
             <PrivateRoute>
               <Suspense fallback={<Loading></Loading>} key={location.pathname}>
                 <TopUp />
-              </Suspense>
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path='/console/checkin'
-          element={
-            <PrivateRoute>
-              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
-                <Checkin />
               </Suspense>
             </PrivateRoute>
           }

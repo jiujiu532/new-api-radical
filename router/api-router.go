@@ -102,9 +102,8 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.POST("/2fa/backup_codes", controller.RegenerateBackupCodes)
 
 				// 签到 routes
-				selfRoute.POST("/checkin", controller.Checkin)
-				selfRoute.GET("/checkin/status", controller.GetCheckinStatus)
-				selfRoute.GET("/checkin/history", controller.GetCheckinHistory)
+				selfRoute.GET("/checkin", controller.GetCheckinStatus)
+				selfRoute.POST("/checkin", controller.DoCheckin)
 			}
 
 			adminRoute := userRoute.Group("/")

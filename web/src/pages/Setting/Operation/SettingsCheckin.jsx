@@ -103,7 +103,7 @@ export default function SettingsCheckin(props) {
                 <Form.Switch
                   label={t('启用签到功能')}
                   field={'checkin_setting.checkin_enabled'}
-                  extraText={t('开启后用户每天可签到一次领取额度（UTC+8时区）')}
+                  extraText={t('开启后用户每天可签到一次领取额度')}
                   onChange={(value) =>
                     setInputs({
                       ...inputs,
