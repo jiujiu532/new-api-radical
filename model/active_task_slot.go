@@ -382,6 +382,10 @@ func scanAndSaveHighActiveUsers() {
 	
 	now := time.Now().Unix()
 	for _, u := range highActiveUsers {
+		// 排除管理员
+		if IsAdmin(u.UserID) {
+			continue
+		}
 		record := HighActiveTaskRecord{
 			UserId:      u.UserID,
 			Username:    u.Username,
