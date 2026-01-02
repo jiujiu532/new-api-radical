@@ -36,7 +36,7 @@ const routerMap = {
   token: '/console/token',
   redemption: '/console/redemption',
   topup: '/console/topup',
-  checkin: '/console/checkin',
+  checkin: '/personal',
   user: '/console/user',
   log: '/console/log',
   midjourney: '/console/midjourney',
@@ -137,7 +137,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
       {
         text: t('每日签到'),
         itemKey: 'checkin',
-        to: '/console/checkin',
+        to: '/personal',
       },
       {
         text: t('个人设置'),
