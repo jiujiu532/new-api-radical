@@ -89,3 +89,42 @@ func GetHighActiveTaskHistoryAPI(c *gin.Context) {
 		"total":   len(records),
 	})
 }
+
+
+// GetUserTokenUsage24hAPI 获取用户24小时内按模型分类的token消耗
+// GET /api/active_task/user_token_usage
+// 参数：
+// - user_id: 用户ID（必填）
+func GetUserTokenUsage24hAPI(c *gin.Context) {
+	userId, err := strconv.Atoi(c.Query("user_id"))
+	if err != nil || userId <= 0 {
+		common.ApiErrorMsg(c, "无效的用户ID")
+		return
+	}
+
+	// 计算24小时前的时间戳
+	now := common.GetTimestamp()
+	startTimestamp := now - 24*60*60
+
+	results, err := model.GetUserTokenUsageByModel(userId, startTimestamp, now)
+	if err != nil {
+		common.ApiErrorMsg(c, "获取token消耗失败: "+err.Error())
+		return
+	}
+
+	// 计算总计
+	var totalTokens, totalRequests int64
+	for _, r := range results {
+		totalTokens += r.TotalTokens
+		totalRequests += r.RequestCount
+	}
+
+	common.ApiSuccess(c, gin.H{
+		"user_id":         userId,
+		"start_timestamp": startTimestamp,
+		"end_timestamp":   now,
+		"models":          results,
+		"total_tokens":    totalTokens,
+		"total_requests":  totalRequests,
+	})
+}

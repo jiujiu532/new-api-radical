@@ -440,3 +440,31 @@ func DeleteOldLog(ctx context.Context, targetTimestamp int64, limit int) (int64,
 
 	return total, nil
 }
+
+
+// ModelTokenUsage 模型token使用统计
+type ModelTokenUsage struct {
+	ModelName        string `json:"model_name"`
+	PromptTokens     int64  `json:"prompt_tokens"`
+	CompletionTokens int64  `json:"completion_tokens"`
+	TotalTokens      int64  `json:"total_tokens"`
+	RequestCount     int64  `json:"request_count"`
+}
+
+// GetUserTokenUsageByModel 获取用户在指定时间范围内按模型分类的token消耗
+// 优先使用quota_data表（数据看板统计表），性能更好
+func GetUserTokenUsageByModel(userId int, startTimestamp int64, endTimestamp int64) ([]ModelTokenUsage, error) {
+	var results []ModelTokenUsage
+
+	// 使用quota_data表查询，该表已按小时聚合
+	err := DB.Table("quota_data").
+		Select("model_name, sum(token_used) as total_tokens, sum(count) as request_count").
+		Where("user_id = ?", userId).
+		Where("created_at >= ?", startTimestamp).
+		Where("created_at <= ?", endTimestamp).
+		Group("model_name").
+		Order("total_tokens desc").
+		Find(&results).Error
+
+	return results, err
+}

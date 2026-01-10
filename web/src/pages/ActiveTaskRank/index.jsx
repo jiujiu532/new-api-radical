@@ -19,7 +19,8 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Card, Form, Select, Space, Table, Typography, Descriptions, Tabs, TabPane, DatePicker } from '@douyinfe/semi-ui';
+import { Button, Card, Form, Select, Space, Table, Typography, Descriptions, Tabs, TabPane, DatePicker, Modal } from '@douyinfe/semi-ui';
+import { IconEyeOpened } from '@douyinfe/semi-icons';
 import { API, showError } from '../../helpers';
 
 function isAxiosError403(error) {
@@ -59,6 +60,12 @@ export default function ActiveTaskRankPage() {
     dateRange: null,
     limit: 100,
   });
+
+  // Token消耗弹窗状态
+  const [tokenModalVisible, setTokenModalVisible] = useState(false);
+  const [tokenModalLoading, setTokenModalLoading] = useState(false);
+  const [tokenUsageData, setTokenUsageData] = useState(null);
+  const [selectedUser, setSelectedUser] = useState(null);
 
   const fetchStats = useCallback(async () => {
     try {
@@ -154,6 +161,35 @@ export default function ActiveTaskRankPage() {
     }
   }, [activeTab]);
 
+  // 查询用户24小时token消耗
+  const queryUserTokenUsage = useCallback(async (userId, username) => {
+    setSelectedUser({ userId, username });
+    setTokenModalVisible(true);
+    setTokenModalLoading(true);
+    try {
+      const res = await API.get('/api/active_task/user_token_usage', {
+        params: { user_id: userId },
+        skipErrorHandler: true,
+      });
+
+      const { success, message, data } = res.data || {};
+      if (!success) {
+        showError(message || '查询失败');
+        return;
+      }
+
+      setTokenUsageData(data);
+    } catch (e) {
+      if (isAxiosError403(e)) {
+        navigate('/forbidden', { replace: true });
+        return;
+      }
+      showError(e?.message || '请求失败');
+    } finally {
+      setTokenModalLoading(false);
+    }
+  }, [navigate]);
+
   // 自动刷新（每5秒，仅实时tab）
   useEffect(() => {
     if (activeTab !== 'realtime') return;
@@ -231,8 +267,23 @@ export default function ActiveTaskRankPage() {
         sorter: (a, b) => (a?.created_at || 0) - (b?.created_at || 0),
         defaultSortOrder: 'descend',
       },
+      {
+        title: '操作',
+        key: 'action',
+        width: 120,
+        render: (_, record) => (
+          <Button
+            type='tertiary'
+            size='small'
+            icon={<IconEyeOpened />}
+            onClick={() => queryUserTokenUsage(record.user_id, record.username)}
+          >
+            Token消耗
+          </Button>
+        ),
+      },
     ],
-    [],
+    [queryUserTokenUsage],
   );
 
   const renderRealtimeTab = () => (
@@ -380,6 +431,77 @@ export default function ActiveTaskRankPage() {
     </>
   );
 
+  // Token消耗表格列定义
+  const tokenUsageColumns = useMemo(
+    () => [
+      {
+        title: '模型名称',
+        dataIndex: 'model_name',
+        key: 'model_name',
+      },
+      {
+        title: '总Token',
+        dataIndex: 'total_tokens',
+        key: 'total_tokens',
+        width: 120,
+        render: (v) => (v || 0).toLocaleString(),
+        sorter: (a, b) => (a?.total_tokens || 0) - (b?.total_tokens || 0),
+        defaultSortOrder: 'descend',
+      },
+      {
+        title: '请求次数',
+        dataIndex: 'request_count',
+        key: 'request_count',
+        width: 100,
+        render: (v) => (v || 0).toLocaleString(),
+      },
+    ],
+    [],
+  );
+
+  // 渲染Token消耗弹窗
+  const renderTokenModal = () => (
+    <Modal
+      title={`用户 ${displayName(selectedUser?.userId, selectedUser?.username)} 的24小时Token消耗`}
+      visible={tokenModalVisible}
+      onCancel={() => {
+        setTokenModalVisible(false);
+        setTokenUsageData(null);
+        setSelectedUser(null);
+      }}
+      footer={null}
+      width={600}
+    >
+      {tokenModalLoading ? (
+        <div className='text-center py-8'>加载中...</div>
+      ) : tokenUsageData ? (
+        <>
+          <Descriptions
+            data={[
+              { key: '总Token', value: (tokenUsageData.total_tokens || 0).toLocaleString() },
+              { key: '总请求次数', value: (tokenUsageData.total_requests || 0).toLocaleString() },
+            ]}
+            row
+            size='small'
+            className='mb-4'
+          />
+          <Table
+            bordered
+            size='small'
+            columns={tokenUsageColumns}
+            dataSource={(tokenUsageData.models || []).map((r, idx) => ({
+              ...r,
+              key: `${r?.model_name ?? idx}`,
+            }))}
+            pagination={false}
+          />
+        </>
+      ) : (
+        <div className='text-center py-8 text-gray-500'>暂无数据</div>
+      )}
+    </Modal>
+  );
+
   return (
     <div className='mt-[60px] px-2'>
       <Card
@@ -411,6 +533,7 @@ export default function ActiveTaskRankPage() {
           </TabPane>
         </Tabs>
       </Card>
+      {renderTokenModal()}
     </div>
   );
 }
