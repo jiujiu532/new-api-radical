@@ -2,9 +2,9 @@
 
 ![new-api](/web/public/logo.png)
 
-# New API
+# New API Radical
 
-🍥 **新一代大模型网关与AI资产管理系统**
+🍥 **新一代大模型网关与AI资产管理系统（增强版）**
 
 <p align="center">
   <strong>中文</strong> | 
@@ -14,74 +14,58 @@
 </p>
 
 <p align="center">
-  <a href="https://raw.githubusercontent.com/Calcium-Ion/new-api/main/LICENSE">
-    <img src="https://img.shields.io/github/license/Calcium-Ion/new-api?color=brightgreen" alt="license">
+  <a href="https://github.com/jiujiu532/new-api-radical">
+    <img src="https://img.shields.io/github/stars/jiujiu532/new-api-radical?style=social" alt="stars">
   </a>
-  <a href="https://github.com/Calcium-Ion/new-api/releases/latest">
-    <img src="https://img.shields.io/github/v/release/Calcium-Ion/new-api?color=brightgreen&include_prereleases" alt="release">
+  <a href="https://github.com/jiujiu532/new-api-radical/releases/latest">
+    <img src="https://img.shields.io/github/v/release/jiujiu532/new-api-radical?color=brightgreen&include_prereleases" alt="release">
   </a>
-  <a href="https://github.com/users/Calcium-Ion/packages/container/package/new-api">
-    <img src="https://img.shields.io/badge/docker-ghcr.io-blue" alt="docker">
+  <a href="https://raw.githubusercontent.com/jiujiu532/new-api-radical/main/LICENSE">
+    <img src="https://img.shields.io/github/license/jiujiu532/new-api-radical?color=brightgreen" alt="license">
   </a>
-  <a href="https://hub.docker.com/r/CalciumIon/new-api">
-    <img src="https://img.shields.io/badge/docker-dockerHub-blue" alt="docker">
-  </a>
-  <a href="https://goreportcard.com/report/github.com/Calcium-Ion/new-api">
-    <img src="https://goreportcard.com/badge/github.com/Calcium-Ion/new-api" alt="GoReportCard">
-  </a>
-</p>
-
-<p align="center">
-  <a href="https://trendshift.io/repositories/8227" target="_blank">
-    <img src="https://trendshift.io/api/badge/repositories/8227" alt="Calcium-Ion%2Fnew-api | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/>
-  </a>
-</p>
-
-<p align="center">
-  <a href="#-快速开始">快速开始</a> •
-  <a href="#-主要特性">主要特性</a> •
-  <a href="#-部署">部署</a> •
-  <a href="#-文档">文档</a> •
-  <a href="#-帮助支持">帮助</a>
 </p>
 
 </div>
 
+## 🆕 新增功能 (Radical 版本特色)
+
+> 本版本基于 [New API](https://github.com/Calcium-Ion/new-api) 二次开发，新增以下功能：
+
+### 📊 用户排行榜系统
+
+| 排行榜 | 说明 |
+|--------|------|
+| 🏆 用户调用排行 | 按调用次数排序，显示用户活跃度 |
+| 🌐 IP调用排行 | 按IP统计调用，支持多用户关联显示 |
+| 💰 Token消耗排行 | 按Token消耗量统计，包含平均消耗计算 |
+| 📱 用户IP数排行 | 统计用户使用的IP数量，可识别异常行为 |
+| ⏱️ 1分钟IP数监控 | 实时监控用户IP变化，用于风控 |
+| 🐿️ 囤囤鼠排行 | 用户余额排行，趣味功能 |
+
+### 🔒 安全功能增强
+
+- **管理员隐私保护**：所有排行榜自动排除管理员用户（role >= 10），防止管理员用户名泄露
+- **IP脱敏显示**：非管理员用户查看时，IP地址自动脱敏处理
+- **渠道ID追踪**：最近调用页面新增渠道ID列，便于运维排查
+
+### 🗄️ 数据库兼容性
+
+- ✅ **MySQL** - 完全支持
+- ✅ **PostgreSQL** - 完全支持  
+- ✅ **SQLite** - 完全支持
+- ✅ **分库部署** - LOG_DB 和 DB 可配置为不同数据库
+
+---
+
 ## 📝 项目说明
 
 > [!NOTE]  
-> 本项目为开源项目，在 [One API](https://github.com/songquanpeng/one-api) 的基础上进行二次开发
+> 本项目为开源项目，在 [One API](https://github.com/songquanpeng/one-api) 和 [New API](https://github.com/Calcium-Ion/new-api) 的基础上进行二次开发
 
 > [!IMPORTANT]  
 > - 本项目仅供个人学习使用，不保证稳定性，且不提供任何技术支持
 > - 使用者必须在遵循 OpenAI 的 [使用条款](https://openai.com/policies/terms-of-use) 以及**法律法规**的情况下使用，不得用于非法用途
 > - 根据 [《生成式人工智能服务管理暂行办法》](http://www.cac.gov.cn/2023-07/13/c_1690898327029107.htm) 的要求，请勿对中国地区公众提供一切未经备案的生成式人工智能服务
-
----
-
-## 🤝 我们信任的合作伙伴
-
-<p align="center">
-  <em>排名不分先后</em>
-</p>
-
-<p align="center">
-  <a href="https://www.cherry-ai.com/" target="_blank">
-    <img src="./docs/images/cherry-studio.png" alt="Cherry Studio" height="80" />
-  </a>
-  <a href="https://bda.pku.edu.cn/" target="_blank">
-    <img src="./docs/images/pku.png" alt="北京大学" height="80" />
-  </a>
-  <a href="https://www.compshare.cn/?ytag=GPU_yy_gh_newapi" target="_blank">
-    <img src="./docs/images/ucloud.png" alt="UCloud 优刻得" height="80" />
-  </a>
-  <a href="https://www.aliyun.com/" target="_blank">
-    <img src="./docs/images/aliyun.png" alt="阿里云" height="80" />
-  </a>
-  <a href="https://io.net/" target="_blank">
-    <img src="./docs/images/io-net.png" alt="IO.NET" height="80" />
-  </a>
-</p>
 
 ---
 
@@ -98,6 +82,7 @@
 </p>
 
 ---
+
 
 ## 🚀 快速开始
 

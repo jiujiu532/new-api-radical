@@ -4,11 +4,19 @@
 upload
 *.exe
 *.db
-build
 *.db-journal
+*.sqlite
+*.sqlite3
+build
 logs
+logs/
 web/dist
+web/node_modules
+node_modules
 .env
+.env.local
+.env.production
+.env.development
 one-api
 new-api
 /__debug_bin*
@@ -23,7 +31,22 @@ web/bun.lock
 electron/node_modules
 electron/dist
 data/
-.gomodcache/
 .gocache-temp
 .gopath
 scripts/
+
+# 编译产物
+*.exe
+*.dll
+*.so
+*.dylib
+
+# 测试文件
+*.test
+*_test.go.bak
+
+# 临时文件
+*.tmp
+*.temp
+*.swp
+*.bak

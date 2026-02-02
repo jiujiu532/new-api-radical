@@ -396,6 +396,13 @@ export default function RecentCallsPage() {
         width: 90,
       },
       {
+        title: 'channel_id',
+        dataIndex: 'channel_id',
+        key: 'channel_id',
+        width: 100,
+        render: (v) => v ? <Tag color='green'>{v}</Tag> : <Tag color='grey'>-</Tag>,
+      },
+      {
         title: 'model_name',
         dataIndex: 'model_name',
         key: 'model_name',
@@ -459,7 +466,7 @@ export default function RecentCallsPage() {
     <div className='mt-[60px] px-2'>
       <Card
         className='!rounded-2xl'
-        title='最近 100 次 API 调用'
+        title={`最近 ${limit} 次 API 调用`}
         headerExtraContent={
           <Space>
             <Button
@@ -486,6 +493,9 @@ export default function RecentCallsPage() {
                   { label: '20', value: 20 },
                   { label: '50', value: 50 },
                   { label: '100', value: 100 },
+                  { label: '200', value: 200 },
+                  { label: '300', value: 300 },
+                  { label: '500', value: 500 },
                 ]}
                 value={limit}
                 onChange={(v) => setLimit(Number(v) || 100)}

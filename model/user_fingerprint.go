@@ -268,10 +268,10 @@ func GetDuplicateVisitorIds(pageInfo *common.PageInfo) ([]map[string]interface{}
 	`
 
 	var results []struct {
-		VisitorId string    `json:"visitor_id"`
-		IP        string    `json:"ip"`
-		UserCount int       `json:"user_count"`
-		LastSeen  time.Time `json:"last_seen"`
+		VisitorId string `json:"visitor_id"`
+		IP        string `json:"ip"`
+		UserCount int    `json:"user_count"`
+		LastSeen  string `json:"last_seen"`
 	}
 
 	err = DB.Raw(query, pageInfo.GetPageSize(), pageInfo.GetStartIdx()).Scan(&results).Error

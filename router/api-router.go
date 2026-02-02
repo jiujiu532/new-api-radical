@@ -313,6 +313,18 @@ func SetApiRouter(router *gin.Engine) {
 			activeTaskRoute.GET("/user_token_usage", controller.GetUserTokenUsage24hAPI)
 		}
 
+		// Ranking routes - 用户调用排行榜 (所有登录用户可访问，但IP显示根据角色脱敏)
+		rankingRoute := apiRouter.Group("/ranking")
+		rankingRoute.Use(middleware.UserAuth())
+		{
+			rankingRoute.GET("/user_call", controller.GetUserCallRanking)
+			rankingRoute.GET("/ip_call", controller.GetIPCallRanking)
+			rankingRoute.GET("/token_consume", controller.GetTokenConsumeRanking)
+			rankingRoute.GET("/user_ip_count", controller.GetUserIPCountRanking)
+			rankingRoute.GET("/recent_ip", controller.GetRecentIPRanking)
+			rankingRoute.GET("/quota_balance", controller.GetQuotaBalanceRanking)
+		}
+
 		// Deployments (model deployment management)
 		deploymentsRoute := apiRouter.Group("/deployments")
 		deploymentsRoute.Use(middleware.AdminAuth())

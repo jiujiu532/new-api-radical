@@ -52,9 +52,10 @@ const routerMap = {
   playground: '/console/playground',
   personal: '/console/personal',
   fingerprint: '/console/fingerprint',
+  ranking: '/console/ranking',
 };
 
-const SiderBar = ({ onNavigate = () => {} }) => {
+const SiderBar = ({ onNavigate = () => { } }) => {
   const { t } = useTranslation();
   const [collapsed, toggleCollapsed] = useSidebarCollapsed();
   const {
@@ -91,6 +92,11 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         text: t('使用日志'),
         itemKey: 'log',
         to: '/log',
+      },
+      {
+        text: t('用户排行'),
+        itemKey: 'ranking',
+        to: '/console/ranking',
       },
       {
         text: t('绘图日志'),

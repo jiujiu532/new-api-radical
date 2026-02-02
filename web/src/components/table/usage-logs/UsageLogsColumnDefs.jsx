@@ -172,19 +172,28 @@ function renderFirstUseTime(type, t) {
   }
 }
 
-function renderModelName(record, copyText, t) {
+function renderModelName(record, copyText, t, isAdminUser = false) {
   let other = getLogOther(record.other);
   let modelMapped =
     other?.is_model_mapped &&
     other?.upstream_model_name &&
     other?.upstream_model_name !== '';
-  if (!modelMapped) {
+
+  // 普通用户不显示模型重定向信息，只显示请求的模型名
+  if (!modelMapped || !isAdminUser) {
     return renderModelTag(record.model_name, {
       onClick: (event) => {
-        copyText(event, record.model_name).then((r) => {});
+        copyText(event, record.model_name).then((r) => { });
       },
+      // 如果有模型重定向且是管理员，显示路由图标提示
+      suffixIcon: modelMapped && isAdminUser ? (
+        <Route
+          style={{ width: '0.9em', height: '0.9em', opacity: 0.75 }}
+        />
+      ) : undefined,
     });
   } else {
+    // 管理员可以看到完整的模型重定向信息
     return (
       <>
         <Space vertical align={'start'}>
@@ -198,7 +207,7 @@ function renderModelName(record, copyText, t) {
                     </Typography.Text>
                     {renderModelTag(record.model_name, {
                       onClick: (event) => {
-                        copyText(event, record.model_name).then((r) => {});
+                        copyText(event, record.model_name).then((r) => { });
                       },
                     })}
                   </div>
@@ -209,7 +218,7 @@ function renderModelName(record, copyText, t) {
                     {renderModelTag(other.upstream_model_name, {
                       onClick: (event) => {
                         copyText(event, other.upstream_model_name).then(
-                          (r) => {},
+                          (r) => { },
                         );
                       },
                     })}
@@ -220,7 +229,7 @@ function renderModelName(record, copyText, t) {
           >
             {renderModelTag(record.model_name, {
               onClick: (event) => {
-                copyText(event, record.model_name).then((r) => {});
+                copyText(event, record.model_name).then((r) => { });
               },
               suffixIcon: (
                 <Route
@@ -380,7 +389,7 @@ export const getLogsColumns = ({
       dataIndex: 'model_name',
       render: (text, record, index) => {
         return record.type === 0 || record.type === 2 || record.type === 5 ? (
-          <>{renderModelName(record, copyText, t)}</>
+          <>{renderModelName(record, copyText, t, isAdminUser)}</>
         ) : (
           <></>
         );
@@ -543,41 +552,41 @@ export const getLogsColumns = ({
         }
         let content = other?.claude
           ? renderModelPriceSimple(
-              other.model_ratio,
-              other.model_price,
-              other.group_ratio,
-              other?.user_group_ratio,
-              other.cache_tokens || 0,
-              other.cache_ratio || 1.0,
-              other.cache_creation_tokens || 0,
-              other.cache_creation_ratio || 1.0,
-              other.cache_creation_tokens_5m || 0,
-              other.cache_creation_ratio_5m || other.cache_creation_ratio || 1.0,
-              other.cache_creation_tokens_1h || 0,
-              other.cache_creation_ratio_1h || other.cache_creation_ratio || 1.0,
-              false,
-              1.0,
-              other?.is_system_prompt_overwritten,
-              'claude',
-            )
+            other.model_ratio,
+            other.model_price,
+            other.group_ratio,
+            other?.user_group_ratio,
+            other.cache_tokens || 0,
+            other.cache_ratio || 1.0,
+            other.cache_creation_tokens || 0,
+            other.cache_creation_ratio || 1.0,
+            other.cache_creation_tokens_5m || 0,
+            other.cache_creation_ratio_5m || other.cache_creation_ratio || 1.0,
+            other.cache_creation_tokens_1h || 0,
+            other.cache_creation_ratio_1h || other.cache_creation_ratio || 1.0,
+            false,
+            1.0,
+            other?.is_system_prompt_overwritten,
+            'claude',
+          )
           : renderModelPriceSimple(
-              other.model_ratio,
-              other.model_price,
-              other.group_ratio,
-              other?.user_group_ratio,
-              other.cache_tokens || 0,
-              other.cache_ratio || 1.0,
-              0,
-              1.0,
-              0,
-              1.0,
-              0,
-              1.0,
-              false,
-              1.0,
-              other?.is_system_prompt_overwritten,
-              'openai',
-            );
+            other.model_ratio,
+            other.model_price,
+            other.group_ratio,
+            other?.user_group_ratio,
+            other.cache_tokens || 0,
+            other.cache_ratio || 1.0,
+            0,
+            1.0,
+            0,
+            1.0,
+            0,
+            1.0,
+            false,
+            1.0,
+            other?.is_system_prompt_overwritten,
+            'openai',
+          );
         return (
           <Typography.Paragraph
             ellipsis={{

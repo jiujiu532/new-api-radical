@@ -49,6 +49,7 @@ export const useSidebar = () => {
       detail: true,
       token: true,
       log: true,
+      ranking: true,
       midjourney: true,
       task: true,
     },

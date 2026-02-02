@@ -59,6 +59,7 @@ const About = lazy(() => import('./pages/About'));
 const UserAgreement = lazy(() => import('./pages/UserAgreement'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 const Fingerprint = lazy(() => import('./pages/Fingerprint'));
+const Ranking = lazy(() => import('./pages/Ranking'));
 
 function App() {
   const location = useLocation();
@@ -328,6 +329,17 @@ function App() {
                 <ActiveTaskRank />
               </Suspense>
             </AdminRoute>
+          }
+        />
+
+        <Route
+          path='/console/ranking'
+          element={
+            <PrivateRoute>
+              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                <Ranking />
+              </Suspense>
+            </PrivateRoute>
           }
         />
 
