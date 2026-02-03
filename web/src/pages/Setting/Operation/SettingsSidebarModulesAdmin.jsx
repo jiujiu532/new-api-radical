@@ -69,6 +69,7 @@ export default function SettingsSidebarModulesAdmin(props) {
       redemption: true,
       user: true,
       fingerprint: true,
+      invitation_code: true,
       setting: true,
     },
   });
@@ -133,6 +134,7 @@ export default function SettingsSidebarModulesAdmin(props) {
         redemption: true,
         user: true,
         fingerprint: true,
+        invitation_code: true,
         setting: true,
       },
     };
@@ -205,6 +207,7 @@ export default function SettingsSidebarModulesAdmin(props) {
             redemption: true,
             user: true,
             fingerprint: true,
+            invitation_code: true,
             setting: true,
           },
         };
@@ -278,6 +281,11 @@ export default function SettingsSidebarModulesAdmin(props) {
           key: 'fingerprint',
           title: t('关联追踪'),
           description: t('用户设备指纹追踪'),
+        },
+        {
+          key: 'invitation_code',
+          title: t('注解码管理'),
+          description: t('注册码/解封码管理'),
         },
         {
           key: 'setting',

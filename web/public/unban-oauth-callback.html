@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>解封验证中...</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container {
+            text-align: center;
+            padding: 40px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            max-width: 400px;
+            width: 90%;
+        }
+
+        .icon {
+            width: 64px;
+            height: 64px;
+            margin: 0 auto 20px;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        .icon.success {
+            animation: none;
+        }
+
+        .icon.error {
+            animation: none;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 0.4;
+                transform: scale(1);
+            }
+
+            50% {
+                opacity: 1;
+                transform: scale(1.1);
+            }
+        }
+
+        .title {
+            color: #fff;
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+
+        .message {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .spinner {
+            width: 48px;
+            height: 48px;
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-top-color: #3b82f6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .success-icon {
+            color: #22c55e;
+        }
+
+        .error-icon {
+            color: #ef4444;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container" id="content">
+        <div class="spinner"></div>
+        <h1 class="title" id="title">验证中</h1>
+        <p class="message" id="message">正在验证您的身份，请稍候...</p>
+    </div>
+
+    <script>
+        (function () {
+            const ui = {
+                title: document.getElementById('title'),
+                message: document.getElementById('message'),
+                content: document.getElementById('content'),
+
+                showSuccess: function (msg) {
+                    this.content.innerHTML = `
+                        <div class="icon success success-icon">
+                            <svg viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                            </svg>
+                        </div>
+                        <h1 class="title">验证成功</h1>
+                        <p class="message">${msg}</p>
+                    `;
+                },
+
+                showError: function (msg) {
+                    this.content.innerHTML = `
+                        <div class="icon error error-icon">
+                            <svg viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm5 13.59L15.59 17 12 13.41 8.41 17 7 15.59 10.59 12 7 8.41 8.41 7 12 10.59 15.59 7 17 8.41 13.41 12 17 15.59z"/>
+                            </svg>
+                        </div>
+                        <h1 class="title">验证失败</h1>
+                        <p class="message">${msg}</p>
+                    `;
+                }
+            };
+
+            // 解析 URL 参数
+            const params = new URLSearchParams(window.location.search);
+            const error = params.get('error');
+            const code = params.get('code');
+            const state = params.get('state');
+
+            // 检查是否是解封验证回调
+            if (state && state.startsWith('unban_')) {
+                // 这是解封验证
+                handleUnbanVerify(code, state, error);
+            } else {
+                // 这是普通的 OAuth 登录，不处理
+                ui.showError('无效的验证请求');
+            }
+
+            async function handleUnbanVerify(code, state, error) {
+                if (error) {
+                    ui.showError('第三方授权失败：' + error);
+                    sendToParent({ type: 'unban_oauth_error', message: error });
+                    return;
+                }
+
+                if (!code || !state) {
+                    ui.showError('缺少必要参数');
+                    sendToParent({ type: 'unban_oauth_error', message: '缺少必要参数' });
+                    return;
+                }
+
+                // 从 state 解析用户名
+                // state 格式: unban_username_timestamp
+                const parts = state.split('_');
+                if (parts.length < 3 || parts[0] !== 'unban') {
+                    ui.showError('无效的验证状态');
+                    sendToParent({ type: 'unban_oauth_error', message: '无效的验证状态' });
+                    return;
+                }
+
+                const username = parts.slice(1, -1).join('_'); // 支持用户名中包含下划线
+
+                // 判断 OAuth 类型
+                const path = window.location.pathname;
+                let oauthType = '';
+                if (path.includes('/oauth/github')) {
+                    oauthType = 'github';
+                } else if (path.includes('/oauth/discord')) {
+                    oauthType = 'discord';
+                } else if (path.includes('/oauth/linuxdo')) {
+                    oauthType = 'linuxdo';
+                } else if (path.includes('/oauth/oidc')) {
+                    oauthType = 'oidc';
+                } else if (path.includes('/oauth/wechat')) {
+                    oauthType = 'wechat';
+                } else if (path.includes('/oauth/telegram')) {
+                    oauthType = 'telegram';
+                }
+
+                if (!oauthType) {
+                    ui.showError('未知的验证类型');
+                    sendToParent({ type: 'unban_oauth_error', message: '未知的验证类型' });
+                    return;
+                }
+
+                try {
+                    // 调用后端验证接口
+                    const response = await fetch('/api/blacklist/oauth_verify', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            username: username,
+                            oauth_type: oauthType,
+                            code: code,
+                            state: state,
+                        }),
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        ui.showSuccess('身份验证成功，窗口将自动关闭...');
+                        sendToParent({
+                            type: 'unban_oauth_success',
+                            oauth_token: result.data.token
+                        });
+
+                        // 延迟关闭窗口
+                        setTimeout(() => {
+                            window.close();
+                        }, 1500);
+                    } else {
+                        ui.showError(result.message || '验证失败');
+                        sendToParent({ type: 'unban_oauth_error', message: result.message });
+                    }
+                } catch (err) {
+                    ui.showError('验证请求失败：' + err.message);
+                    sendToParent({ type: 'unban_oauth_error', message: err.message });
+                }
+            }
+
+            function sendToParent(data) {
+                try {
+                    if (window.opener) {
+                        window.opener.postMessage(data, window.location.origin);
+                    }
+                } catch (e) {
+                    console.error('Failed to send message to parent:', e);
+                }
+            }
+        })();
+    </script>
+</body>
+
+</html>

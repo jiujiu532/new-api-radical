@@ -78,6 +78,7 @@ import {
   Activity,
   Server,
   Trophy,
+  Ticket,
 } from 'lucide-react';
 
 // 获取侧边栏Lucide图标组件
@@ -135,6 +136,8 @@ export function getLucideIcon(key, selected = false) {
       return <Activity {...commonProps} color={iconColor} />;
     case 'ranking':
       return <Trophy {...commonProps} color={iconColor} />;
+    case 'invitation_code':
+      return <Ticket {...commonProps} color={iconColor} />;
     default:
       return <CircleUser {...commonProps} color={iconColor} />;
   }

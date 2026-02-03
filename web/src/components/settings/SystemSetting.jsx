@@ -1028,6 +1028,15 @@ const SystemSetting = () => {
                       >
                         {t('允许 Turnstile 用户校验')}
                       </Form.Checkbox>
+                      <Form.Checkbox
+                        field='InvitationCodeEnabled'
+                        noLabel
+                        onChange={(e) =>
+                          handleCheckboxChange('InvitationCodeEnabled', e)
+                        }
+                      >
+                        {t('强制使用注册码注册')}
+                      </Form.Checkbox>
                     </Col>
                     <Col xs={24} sm={24} md={12} lg={12} xl={12}>
                       <Form.Checkbox

@@ -16,6 +16,8 @@ type verificationValue struct {
 const (
 	EmailVerificationPurpose = "v"
 	PasswordResetPurpose     = "r"
+	UnbanPurpose             = "u"
+	OAuthUnbanPurpose        = "ou"
 )
 
 var verificationMutex sync.Mutex
@@ -75,4 +77,16 @@ func init() {
 	verificationMutex.Lock()
 	defer verificationMutex.Unlock()
 	verificationMap = make(map[string]verificationValue)
+}
+
+// GenerateOAuthUnbanToken 生成 OAuth 解封验证 token
+func GenerateOAuthUnbanToken(username string) string {
+	token := GenerateVerificationCode(32)
+	RegisterVerificationCodeWithKey(username, token, OAuthUnbanPurpose)
+	return token
+}
+
+// VerifyOAuthUnbanToken 验证 OAuth 解封 token
+func VerifyOAuthUnbanToken(username string, token string) bool {
+	return VerifyCodeWithKey(username, token, OAuthUnbanPurpose)
 }

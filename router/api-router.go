@@ -25,6 +25,18 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/about", controller.GetAbout)
 		//apiRouter.GET("/midjourney", controller.GetMidjourney)
 		apiRouter.GET("/home_page_content", controller.GetHomePageContent)
+		
+		// 小黑屋（公开接口）
+		apiRouter.GET("/blacklist/", controller.GetBlacklist)
+		apiRouter.GET("/blacklist/verify_method", controller.GetUnbanVerifyMethod)
+		apiRouter.POST("/blacklist/send_code", middleware.EmailVerificationRateLimit(), controller.SendUnbanVerifyCode)
+		apiRouter.POST("/blacklist/send_email_code", middleware.EmailVerificationRateLimit(), controller.SendUnbanEmailCode)
+		apiRouter.POST("/blacklist/verify_email", middleware.CriticalRateLimit(), controller.VerifyEmailForUnban)
+		apiRouter.POST("/blacklist/verify_username", middleware.CriticalRateLimit(), controller.VerifyUsernameForUnban)
+		apiRouter.POST("/blacklist/unban", middleware.CriticalRateLimit(), controller.UnbanWithCode)
+		apiRouter.POST("/blacklist/oauth_verify", middleware.CriticalRateLimit(), controller.OAuthUnbanVerify)
+		apiRouter.POST("/blacklist/oauth_verify_by_code", middleware.CriticalRateLimit(), controller.OAuthUnbanVerifyByCode)
+		
 		apiRouter.GET("/pricing", middleware.TryUserAuth(), controller.GetPricing)
 		apiRouter.GET("/verification", middleware.EmailVerificationRateLimit(), middleware.TurnstileCheck(), controller.SendEmailVerification)
 		apiRouter.GET("/reset_password", middleware.CriticalRateLimit(), middleware.TurnstileCheck(), controller.SendPasswordResetEmail)
@@ -324,6 +336,26 @@ func SetApiRouter(router *gin.Engine) {
 			rankingRoute.GET("/recent_ip", controller.GetRecentIPRanking)
 			rankingRoute.GET("/quota_balance", controller.GetQuotaBalanceRanking)
 		}
+
+		// Invitation Code routes - 邀请码/注册码/解封码管理 (管理员权限)
+		invitationCodeRoute := apiRouter.Group("/invitation_code")
+		invitationCodeRoute.Use(middleware.AdminAuth())
+		{
+		invitationCodeRoute.POST("/generate", controller.GenerateInvitationCodes)  // 批量生成
+			invitationCodeRoute.GET("/", controller.GetInvitationCodes)                // 获取列表
+			invitationCodeRoute.GET("/stats", controller.GetInvitationCodeStats)       // 获取统计
+			invitationCodeRoute.GET("/:id", controller.GetInvitationCode)              // 获取详情
+			invitationCodeRoute.PUT("/:id", controller.UpdateInvitationCode)           // 更新
+			invitationCodeRoute.DELETE("/:id", controller.DeleteInvitationCode)        // 删除
+			invitationCodeRoute.GET("/usage_logs", controller.GetInvitationCodeUsageLogs) // 使用记录
+			invitationCodeRoute.POST("/batch_update_status", controller.BatchUpdateInvitationCodeStatus) // 批量更新状态
+			invitationCodeRoute.POST("/batch_delete", controller.BatchDeleteInvitationCodes) // 批量删除
+			invitationCodeRoute.GET("/export", controller.ExportInvitationCodes)       // 导出码值
+			invitationCodeRoute.DELETE("/delete_all_by_type", controller.DeleteAllInvitationCodesByType) // 按类型删除所有
+		}
+
+		// 公开的邀请码验证接口（用于注册页面预检）
+		apiRouter.POST("/invitation_code/validate", controller.ValidateInvitationCode)
 
 		// Deployments (model deployment management)
 		deploymentsRoute := apiRouter.Group("/deployments")

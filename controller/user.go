@@ -59,6 +59,18 @@ func Login(c *gin.Context) {
 	}
 	err = user.ValidateAndFill()
 	if err != nil {
+		// 检查是否是用户被禁用
+		if err.Error() == "USER_DISABLED" {
+			c.JSON(http.StatusOK, gin.H{
+				"message": "您的账户已被封禁，请前往小黑屋使用解封码解封",
+				"success": false,
+				"data": gin.H{
+					"user_disabled": true,
+					"username":      username,
+				},
+			})
+			return
+		}
 		c.JSON(http.StatusOK, gin.H{
 			"message": err.Error(),
 			"success": false,
@@ -204,6 +216,27 @@ func Register(c *gin.Context) {
 		})
 		return
 	}
+	
+	// 邀请码验证
+	if common.InvitationCodeEnabled {
+		if user.InvitationCode == "" {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "请输入邀请码",
+			})
+			return
+		}
+		// 验证邀请码（先只检查有效性，注册成功后再消耗使用次数）
+		valid, errMsg := model.CheckCodeExists(user.InvitationCode, model.InvitationCodeTypeRegister)
+		if !valid {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "邀请码无效：" + errMsg,
+			})
+			return
+		}
+	}
+	
 	affCode := user.AffCode // this code is the inviter's code, not the user's own code
 	inviterId, _ := model.GetUserIdByAffCode(affCode)
 	cleanUser := model.User{
@@ -262,6 +295,16 @@ func Register(c *gin.Context) {
 				"message": "创建默认令牌失败",
 			})
 			return
+		}
+	}
+
+	// 注册成功后消耗邀请码使用次数
+	if common.InvitationCodeEnabled && user.InvitationCode != "" {
+		clientIP := c.ClientIP()
+		_, err := model.ValidateAndUseCode(user.InvitationCode, model.InvitationCodeTypeRegister, insertedUser.Id, insertedUser.Username, clientIP)
+		if err != nil {
+			// 记录日志但不影响注册结果
+			common.SysLog(fmt.Sprintf("消耗邀请码失败（用户 %s）: %v", insertedUser.Username, err))
 		}
 	}
 

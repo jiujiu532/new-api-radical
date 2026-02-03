@@ -100,6 +100,17 @@ func authHelper(c *gin.Context, minRole int) {
 		c.Abort()
 		return
 	}
+
+	// 实时查询用户状态，确保封禁立即生效
+	// 只在 session 中没有 access_token 时才查询（即使用 session 登录的用户）
+	if !useAccessToken && id != nil {
+		userCache, err := model.GetUserCache(id.(int))
+		if err == nil && userCache != nil {
+			// 使用实时的用户状态
+			status = userCache.Status
+		}
+	}
+
 	if status.(int) == common.UserStatusDisabled {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,

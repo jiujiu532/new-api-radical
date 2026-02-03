@@ -39,6 +39,43 @@ const OAuth2Callback = (props) => {
   // 最大重试次数
   const MAX_RETRIES = 3;
 
+  // 防止封禁跳转重复触发
+  const hasBannedRedirected = React.useRef(false);
+
+  // 处理解封验证流程
+  const handleUnbanVerify = async (code, state, oauthType) => {
+    try {
+      // 调用解封验证 API（不是登录 API）
+      const res = await API.post('/api/blacklist/oauth_verify_by_code', {
+        code: code,
+        state: state,
+        oauth_type: oauthType,
+      });
+
+      // 清除解封标记
+      localStorage.removeItem('unban_action');
+      localStorage.removeItem('unban_oauth_type');
+
+      if (res.data.success) {
+        const { token, username, display_name } = res.data.data;
+
+        // 跳转回小黑屋页面，带上验证结果
+        navigate(`/blacklist?verified=true&token=${encodeURIComponent(token)}&username=${encodeURIComponent(username)}&display_name=${encodeURIComponent(display_name || username)}`);
+      } else {
+        showError(res.data.message || t('验证失败'));
+        navigate('/blacklist');
+      }
+    } catch (error) {
+      // 清除解封标记
+      localStorage.removeItem('unban_action');
+      localStorage.removeItem('unban_oauth_type');
+
+      showError(error?.response?.data?.message || error?.message || t('验证失败'));
+      navigate('/blacklist');
+    }
+  };
+
+  // 处理正常登录流程
   const sendCode = async (code, state, retry = 0) => {
     try {
       const { data: resData } = await API.get(
@@ -63,6 +100,17 @@ const OAuth2Callback = (props) => {
         navigate('/console/token');
       }
     } catch (error) {
+      // 检测是否是封禁错误
+      const errorMessage = error?.message || '';
+      if (errorMessage.includes('用户已被封禁') || errorMessage.includes('USER_DISABLED')) {
+        // 用户被封禁，只跳转一次
+        if (!hasBannedRedirected.current) {
+          hasBannedRedirected.current = true;
+          navigate('/login?banned=true', { replace: true });
+        }
+        return;
+      }
+
       if (retry < MAX_RETRIES) {
         // 递增的退避等待
         await new Promise((resolve) => setTimeout(resolve, (retry + 1) * 2000));
@@ -86,7 +134,17 @@ const OAuth2Callback = (props) => {
       return;
     }
 
-    sendCode(code, state);
+    // 检查是否是解封验证场景
+    const isUnbanAction = localStorage.getItem('unban_action') === 'true';
+    const unbanOAuthType = localStorage.getItem('unban_oauth_type');
+
+    if (isUnbanAction && unbanOAuthType === props.type) {
+      // 这是解封验证，调用解封验证 API
+      handleUnbanVerify(code, state, props.type);
+    } else {
+      // 这是普通登录，走原来的登录流程
+      sendCode(code, state);
+    }
   }, []);
 
   return <Loading />;

@@ -119,8 +119,37 @@ if (isMobileScreen) {
   // showNoticeOptions.transition = 'flip';
 }
 
+// 封禁检测标记 - 防止重复跳转
+let isBanRedirecting = false;
+
+// 检测是否是封禁错误并处理强制登出
+function checkBanAndRedirect(errorMessage) {
+  if (isBanRedirecting) return true; // 已经在跳转中
+
+  const message = String(errorMessage || '');
+  if (message.includes('用户已被封禁') || message.includes('USER_DISABLED')) {
+    isBanRedirecting = true;
+
+    // 清除用户信息
+    localStorage.removeItem('user');
+    sessionStorage.clear();
+
+    // 立即跳转到登录页
+    window.location.replace('/login?banned=true');
+    return true;
+  }
+  return false;
+}
+
 export function showError(error) {
   console.error(error);
+
+  // 首先检查是否是封禁错误
+  const errorMessage = error?.message || error?.response?.data?.message || String(error);
+  if (checkBanAndRedirect(errorMessage)) {
+    return; // 已处理封禁，不显示错误
+  }
+
   if (error.message) {
     if (error.name === 'AxiosError') {
       switch (error.response.status) {
@@ -146,6 +175,10 @@ export function showError(error) {
     }
     Toast.error('错误：' + error.message);
   } else {
+    // 再次检查字符串错误消息
+    if (checkBanAndRedirect(error)) {
+      return;
+    }
     Toast.error('错误：' + error);
   }
 }

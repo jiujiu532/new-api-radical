@@ -64,6 +64,7 @@ const RegisterForm = () => {
     email: '',
     verification_code: '',
     wechat_verification_code: '',
+    invitation_code: '',
   });
   const { username, password, password2 } = inputs;
   const [userState, userDispatch] = useContext(UserContext);
@@ -115,7 +116,7 @@ const RegisterForm = () => {
       setTurnstileEnabled(true);
       setTurnstileSiteKey(status.turnstile_site_key);
     }
-    
+
     // 从 status 获取用户协议和隐私政策的启用状态
     setHasUserAgreement(status.user_agreement_enabled || false);
     setHasPrivacyPolicy(status.privacy_policy_enabled || false);
@@ -168,7 +169,24 @@ const RegisterForm = () => {
         showSuccess('登录成功！');
         setShowWeChatLoginModal(false);
       } else {
-        showError(message);
+        // 检查是否是封禁
+        if (message && message.includes('用户已被封禁')) {
+          setShowWeChatLoginModal(false);
+          Modal.warning({
+            title: t('账户已被封禁'),
+            content: (
+              <div>
+                <p>{t('您的账户已被封禁，如需解封请前往小黑屋使用解封码')}</p>
+              </div>
+            ),
+            okText: t('前往小黑屋'),
+            cancelText: t('取消'),
+            onOk: () => navigate('/blacklist'),
+            centered: true,
+          });
+        } else {
+          showError(message);
+        }
       }
     } catch (error) {
       showError('登录失败，请重试');
@@ -249,6 +267,10 @@ const RegisterForm = () => {
     if (githubButtonDisabled) {
       return;
     }
+    // 清除可能残留的解封标记，防止OAuth回调误判为解封流程
+    localStorage.removeItem('unban_action');
+    localStorage.removeItem('unban_oauth_type');
+
     setGithubLoading(true);
     setGithubButtonDisabled(true);
     setGithubButtonText(t('正在跳转 GitHub...'));
@@ -268,6 +290,10 @@ const RegisterForm = () => {
   };
 
   const handleDiscordClick = () => {
+    // 清除可能残留的解封标记，防止OAuth回调误判为解封流程
+    localStorage.removeItem('unban_action');
+    localStorage.removeItem('unban_oauth_type');
+
     setDiscordLoading(true);
     try {
       onDiscordOAuthClicked(status.discord_client_id, { shouldLogout: true });
@@ -277,6 +303,10 @@ const RegisterForm = () => {
   };
 
   const handleOIDCClick = () => {
+    // 清除可能残留的解封标记，防止OAuth回调误判为解封流程
+    localStorage.removeItem('unban_action');
+    localStorage.removeItem('unban_oauth_type');
+
     setOidcLoading(true);
     try {
       onOIDCClicked(
@@ -291,6 +321,10 @@ const RegisterForm = () => {
   };
 
   const handleLinuxDOClick = () => {
+    // 清除可能残留的解封标记，防止OAuth回调误判为解封流程
+    localStorage.removeItem('unban_action');
+    localStorage.removeItem('unban_oauth_type');
+
     setLinuxdoLoading(true);
     try {
       onLinuxDOOAuthClicked(status.linuxdo_client_id, { shouldLogout: true });
@@ -339,7 +373,23 @@ const RegisterForm = () => {
         updateAPI();
         navigate('/');
       } else {
-        showError(message);
+        // 检查是否是封禁
+        if (message && message.includes('用户已被封禁')) {
+          Modal.warning({
+            title: t('账户已被封禁'),
+            content: (
+              <div>
+                <p>{t('您的账户已被封禁，如需解封请前往小黑屋使用解封码')}</p>
+              </div>
+            ),
+            okText: t('前往小黑屋'),
+            cancelText: t('取消'),
+            onOk: () => navigate('/blacklist'),
+            centered: true,
+          });
+        } else {
+          showError(message);
+        }
       }
     } catch (error) {
       showError('登录失败，请重试');
@@ -532,6 +582,18 @@ const RegisterForm = () => {
                   prefix={<IconLock />}
                 />
 
+                {status.invitation_code_enabled && (
+                  <Form.Input
+                    field='invitation_code'
+                    label={t('注册码')}
+                    placeholder={t('请输入注册码')}
+                    name='invitation_code'
+                    onChange={(value) => handleChange('invitation_code', value)}
+                    prefix={<IconKey />}
+                    rules={[{ required: true, message: t('请输入注册码') }]}
+                  />
+                )}
+
                 {showEmailVerification && (
                   <>
                     <Form.Input
@@ -626,24 +688,24 @@ const RegisterForm = () => {
                 status.wechat_login ||
                 status.linuxdo_oauth ||
                 status.telegram_oauth) && (
-                <>
-                  <Divider margin='12px' align='center'>
-                    {t('或')}
-                  </Divider>
+                  <>
+                    <Divider margin='12px' align='center'>
+                      {t('或')}
+                    </Divider>
 
-                  <div className='mt-4 text-center'>
-                    <Button
-                      theme='outline'
-                      type='tertiary'
-                      className='w-full !rounded-full'
-                      onClick={handleOtherRegisterOptionsClick}
-                      loading={otherRegisterOptionsLoading}
-                    >
-                      {t('其他注册选项')}
-                    </Button>
-                  </div>
-                </>
-              )}
+                    <div className='mt-4 text-center'>
+                      <Button
+                        theme='outline'
+                        type='tertiary'
+                        className='w-full !rounded-full'
+                        onClick={handleOtherRegisterOptionsClick}
+                        loading={otherRegisterOptionsLoading}
+                      >
+                        {t('其他注册选项')}
+                      </Button>
+                    </div>
+                  </>
+                )}
 
               <div className='mt-6 text-center text-sm'>
                 <Text>
@@ -715,14 +777,14 @@ const RegisterForm = () => {
       />
       <div className='w-full max-w-sm mt-[60px]'>
         {showEmailRegister ||
-        !(
-          status.github_oauth ||
-          status.discord_oauth ||
-          status.oidc_enabled ||
-          status.wechat_login ||
-          status.linuxdo_oauth ||
-          status.telegram_oauth
-        )
+          !(
+            status.github_oauth ||
+            status.discord_oauth ||
+            status.oidc_enabled ||
+            status.wechat_login ||
+            status.linuxdo_oauth ||
+            status.telegram_oauth
+          )
           ? renderEmailRegisterForm()
           : renderOAuthOptions()}
         {renderWeChatLoginModal()}

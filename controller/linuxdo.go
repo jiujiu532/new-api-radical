@@ -90,10 +90,11 @@ func getLinuxdoUserInfoByCode(code string, c *gin.Context) (*LinuxdoUser, error)
 
 	// Get redirect URI from request
 	scheme := "http"
-	if c.Request.TLS != nil {
+	if c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https" {
 		scheme = "https"
 	}
-	redirectURI := fmt.Sprintf("%s://%s/api/oauth/linuxdo", scheme, c.Request.Host)
+	// 使用前端路由作为回调地址
+	redirectURI := fmt.Sprintf("%s://%s/oauth/linuxdo", scheme, c.Request.Host)
 
 	data := url.Values{}
 	data.Set("grant_type", "authorization_code")
@@ -169,10 +170,18 @@ func LinuxdoOAuth(c *gin.Context) {
 	}
 
 	state := c.Query("state")
-	if state == "" || session.Get("oauth_state") == nil || state != session.Get("oauth_state").(string) {
+	sessionState := session.Get("oauth_state")
+	
+	// 调试日志
+	common.SysLog(fmt.Sprintf("LinuxDO OAuth: state=%s, sessionState=%v", state, sessionState))
+	
+	// LinuxDO 会在 state 后面附加额外内容，所以使用 HasPrefix 比较
+	if state == "" || sessionState == nil || !strings.HasPrefix(state, sessionState.(string)) {
 		c.JSON(http.StatusForbidden, gin.H{
-			"success": false,
-			"message": "state is empty or not same",
+			"success":       false,
+			"message":       "state is empty or not same",
+			"debug_state":   state,
+			"debug_session": fmt.Sprintf("%v", sessionState),
 		})
 		return
 	}

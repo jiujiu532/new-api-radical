@@ -80,9 +80,38 @@ export function updateAPI() {
   patchAPIInstance(API);
 }
 
+// 强制登出标记 - 必须在拦截器之前声明
+let isForceLoggingOut = false;
+
 API.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // 如果正在强制登出，静默处理所有响应
+    if (isForceLoggingOut) {
+      return Promise.reject(new Error('正在登出'));
+    }
+
+    // 检查响应中是否包含封禁消息
+    if (response.data && response.data.success === false) {
+      const message = response.data.message || '';
+      const requestUrl = response.config?.url || '';
+
+      // OAuth 请求不在这里处理封禁，让 OAuth2Callback 组件处理
+      const isOAuthRequest = requestUrl.includes('/api/oauth/');
+
+      if (!isOAuthRequest && (message.includes('用户已被封禁') || message.includes('USER_DISABLED'))) {
+        // 用户已被封禁，强制登出
+        handleForcedLogout('您的账号已被封禁，请联系管理员');
+        return Promise.reject(new Error(message));
+      }
+    }
+    return response;
+  },
   (error) => {
+    // 如果正在强制登出，静默处理所有错误
+    if (isForceLoggingOut) {
+      return Promise.reject(error);
+    }
+
     // 如果请求配置中显式要求跳过全局错误处理，则不弹出默认错误提示
     if (error.config && error.config.skipErrorHandler) {
       return Promise.reject(error);
@@ -91,6 +120,20 @@ API.interceptors.response.use(
     return Promise.reject(error);
   },
 );
+
+// 强制登出处理函数
+function handleForcedLogout(message) {
+  // 防止重复触发
+  if (isForceLoggingOut) return;
+  isForceLoggingOut = true;
+
+  // 清除所有本地存储的用户信息
+  localStorage.removeItem('user');
+  sessionStorage.clear();
+
+  // 立即跳转到登录页
+  window.location.replace('/login?banned=true');
+}
 
 // playground
 

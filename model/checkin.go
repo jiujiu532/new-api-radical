@@ -49,35 +49,78 @@ func HasCheckedInToday(userId int) (bool, error) {
 	return count > 0, err
 }
 
+// CanUserCheckin 检查用户是否可以签到（根据当前模式）
+// 返回：是否可签到、不能签到的原因、签到后获得的额度
+func CanUserCheckin(userId int) (bool, string, int, error) {
+	setting := operation_setting.GetCheckinSetting()
+	if !setting.Enabled {
+		return false, "签到功能未启用", 0, nil
+	}
+
+	mode := operation_setting.GetCheckinMode()
+
+	switch mode {
+	case operation_setting.CheckinModeDaily:
+		// 每日签到模式：检查今天是否已签到
+		hasChecked, err := HasCheckedInToday(userId)
+		if err != nil {
+			return false, "检查签到状态失败", 0, err
+		}
+		if hasChecked {
+			return false, "今日已签到", 0, nil
+		}
+
+		// 计算奖励额度
+		var quotaAwarded int
+		if setting.RandomMode {
+			quotaAwarded = setting.MinQuota
+			if setting.MaxQuota > setting.MinQuota {
+				quotaAwarded = setting.MinQuota + rand.Intn(setting.MaxQuota-setting.MinQuota+1)
+			}
+		} else {
+			quotaAwarded = setting.FixedQuota
+		}
+		return true, "", quotaAwarded, nil
+
+	case operation_setting.CheckinModeLowQuota:
+		// 低额度签到模式：检查用户余额是否低于阈值
+		user, err := GetUserById(userId, false)
+		if err != nil {
+			return false, "获取用户信息失败", 0, err
+		}
+
+		threshold, reward := operation_setting.GetLowQuotaSettings()
+		if user.Quota >= threshold {
+			return false, "当前余额高于签到阈值", 0, nil
+		}
+
+		// 低额度模式也检查今天是否已签到，防止无限刷额度
+		hasChecked, err := HasCheckedInToday(userId)
+		if err != nil {
+			return false, "检查签到状态失败", 0, err
+		}
+		if hasChecked {
+			return false, "今日已签到", 0, nil
+		}
+
+		return true, "", reward, nil
+
+	default:
+		return false, "未知的签到模式", 0, nil
+	}
+}
+
 // UserCheckin 执行用户签到
 // MySQL 和 PostgreSQL 使用事务保证原子性
 // SQLite 不支持嵌套事务，使用顺序操作 + 手动回滚
 func UserCheckin(userId int) (*Checkin, error) {
-	setting := operation_setting.GetCheckinSetting()
-	if !setting.Enabled {
-		return nil, errors.New("签到功能未启用")
-	}
-
-	// 检查今天是否已签到
-	hasChecked, err := HasCheckedInToday(userId)
+	// 先检查是否可以签到
+	canCheckin, reason, quotaAwarded, err := CanUserCheckin(userId)
 	if err != nil {
 		return nil, err
 	}
-	if hasChecked {
-		return nil, errors.New("今日已签到")
-	}
-
-	// 计算额度奖励：支持固定模式和随机模式
-	var quotaAwarded int
-	if setting.RandomMode {
-		// 随机模式（上游默认行为）
-		quotaAwarded = setting.MinQuota
-		if setting.MaxQuota > setting.MinQuota {
-			quotaAwarded = setting.MinQuota + rand.Intn(setting.MaxQuota-setting.MinQuota+1)
-		}
-	} else {
-		// 固定模式（扩展功能）
-		quotaAwarded = setting.FixedQuota
+	if !canCheckin {
+		return nil, errors.New(reason)
 	}
 
 	today := time.Now().Format("2006-01-02")
@@ -167,8 +210,12 @@ func GetUserCheckinStats(userId int, month string) (map[string]interface{}, erro
 		}
 	}
 
-	// 检查今天是否已签到
-	hasCheckedToday, _ := HasCheckedInToday(userId)
+	// 获取签到配置
+	setting := operation_setting.GetCheckinSetting()
+	mode := operation_setting.GetCheckinMode()
+
+	// 检查用户是否可以签到
+	canCheckin, reason, _, _ := CanUserCheckin(userId)
 
 	// 获取用户所有时间的签到统计
 	var totalCheckins int64
@@ -176,11 +223,41 @@ func GetUserCheckinStats(userId int, month string) (map[string]interface{}, erro
 	DB.Model(&Checkin{}).Where("user_id = ?", userId).Count(&totalCheckins)
 	DB.Model(&Checkin{}).Where("user_id = ?", userId).Select("COALESCE(SUM(quota_awarded), 0)").Scan(&totalQuota)
 
-	return map[string]interface{}{
-		"total_quota":      totalQuota,      // 所有时间累计获得的额度
-		"total_checkins":   totalCheckins,   // 所有时间累计签到次数
-		"checkin_count":    len(records),    // 本月签到次数
-		"checked_in_today": hasCheckedToday, // 今天是否已签到
-		"records":          checkinRecords,  // 本月签到记录详情（不含id和user_id）
-	}, nil
+	result := map[string]interface{}{
+		"total_quota":       totalQuota,       // 所有时间累计获得的额度
+		"total_checkins":    totalCheckins,    // 所有时间累计签到次数
+		"checkin_count":     len(records),     // 本月签到次数
+		"can_checkin":       canCheckin,       // 是否可以签到
+		"checkin_reason":    reason,           // 不能签到的原因
+		"records":           checkinRecords,   // 本月签到记录详情（不含id和user_id）
+		"mode":              mode,             // 当前签到模式
+	}
+
+	// 根据模式添加额外信息
+	if mode == operation_setting.CheckinModeLowQuota {
+		threshold, reward := operation_setting.GetLowQuotaSettings()
+		result["low_quota_threshold"] = threshold
+		result["low_quota_reward"] = reward
+		
+		// 获取用户当前余额
+		user, err := GetUserById(userId, false)
+		if err == nil {
+			result["current_quota"] = user.Quota
+		}
+	} else {
+		// 每日签到模式，返回额度范围信息
+		if setting.RandomMode {
+			result["min_quota"] = setting.MinQuota
+			result["max_quota"] = setting.MaxQuota
+		} else {
+			result["fixed_quota"] = setting.FixedQuota
+		}
+		result["random_mode"] = setting.RandomMode
+		
+		// 检查今天是否已签到
+		hasCheckedToday, _ := HasCheckedInToday(userId)
+		result["checked_in_today"] = hasCheckedToday
+	}
+
+	return result, nil
 }

@@ -28,6 +28,7 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
       model_health: true,
       pricing: true,
       docs: true,
+      blacklist: true,
       about: true,
     };
 
@@ -59,14 +60,19 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
       },
       ...(docsLink
         ? [
-            {
-              text: t('文档'),
-              itemKey: 'docs',
-              isExternal: true,
-              externalLink: docsLink,
-            },
-          ]
+          {
+            text: t('文档'),
+            itemKey: 'docs',
+            isExternal: true,
+            externalLink: docsLink,
+          },
+        ]
         : []),
+      {
+        text: t('小黑屋'),
+        itemKey: 'blacklist',
+        to: '/blacklist',
+      },
       {
         text: t('关于'),
         itemKey: 'about',

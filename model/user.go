@@ -32,6 +32,7 @@ type User struct {
 	WeChatId         string         `json:"wechat_id" gorm:"column:wechat_id;index"`
 	TelegramId       string         `json:"telegram_id" gorm:"column:telegram_id;index"`
 	VerificationCode string         `json:"verification_code" gorm:"-:all"`                                    // this field is only for Email verification, don't save it to database!
+	InvitationCode   string         `json:"invitation_code" gorm:"-:all"`                                      // this field is only for invitation code, don't save it to database!
 	AccessToken      *string        `json:"access_token" gorm:"type:char(32);column:access_token;uniqueIndex"` // this token is for system management
 	Quota            int            `json:"quota" gorm:"type:int;default:0"`
 	UsedQuota        int            `json:"used_quota" gorm:"type:int;default:0;column:used_quota"` // used quota
@@ -516,8 +517,11 @@ func (user *User) ValidateAndFill() (err error) {
 	// find buy username or email
 	DB.Where("username = ? OR email = ?", username, username).First(user)
 	okay := common.ValidatePasswordAndHash(password, user.Password)
-	if !okay || user.Status != common.UserStatusEnabled {
-		return errors.New("用户名或密码错误，或用户已被封禁")
+	if !okay {
+		return errors.New("用户名或密码错误")
+	}
+	if user.Status != common.UserStatusEnabled {
+		return errors.New("USER_DISABLED") // 特殊错误标识，用于前端识别
 	}
 	return nil
 }

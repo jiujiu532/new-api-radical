@@ -60,6 +60,8 @@ const UserAgreement = lazy(() => import('./pages/UserAgreement'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 const Fingerprint = lazy(() => import('./pages/Fingerprint'));
 const Ranking = lazy(() => import('./pages/Ranking'));
+const InvitationCode = lazy(() => import('./pages/InvitationCode'));
+const Blacklist = lazy(() => import('./pages/Blacklist'));
 
 function App() {
   const location = useLocation();
@@ -188,6 +190,14 @@ function App() {
               <AuthRedirect>
                 <RegisterForm />
               </AuthRedirect>
+            </Suspense>
+          }
+        />
+        <Route
+          path='/blacklist'
+          element={
+            <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+              <Blacklist />
             </Suspense>
           }
         />
@@ -340,6 +350,17 @@ function App() {
                 <Ranking />
               </Suspense>
             </PrivateRoute>
+          }
+        />
+
+        <Route
+          path='/console/invitation_code'
+          element={
+            <AdminRoute>
+              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                <InvitationCode />
+              </Suspense>
+            </AdminRoute>
           }
         />
 

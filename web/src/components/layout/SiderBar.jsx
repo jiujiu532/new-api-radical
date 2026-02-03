@@ -53,6 +53,7 @@ const routerMap = {
   personal: '/console/personal',
   fingerprint: '/console/fingerprint',
   ranking: '/console/ranking',
+  invitation_code: '/console/invitation_code',
 };
 
 const SiderBar = ({ onNavigate = () => { } }) => {
@@ -208,6 +209,12 @@ const SiderBar = ({ onNavigate = () => { } }) => {
         text: t('关联追踪'),
         itemKey: 'fingerprint',
         to: '/console/fingerprint',
+        className: isAdmin() ? '' : 'tableHiddle',
+      },
+      {
+        text: t('注解码管理'),
+        itemKey: 'invitation_code',
+        to: '/console/invitation_code',
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {

@@ -54,7 +54,7 @@ import WeChatIcon from '../common/logo/WeChatIcon';
 import LinuxDoIcon from '../common/logo/LinuxDoIcon';
 import TwoFAVerification from './TwoFAVerification';
 import { useTranslation } from 'react-i18next';
-import { SiDiscord }from 'react-icons/si';
+import { SiDiscord } from 'react-icons/si';
 
 const LoginForm = () => {
   let navigate = useNavigate();
@@ -112,7 +112,7 @@ const LoginForm = () => {
       setTurnstileEnabled(true);
       setTurnstileSiteKey(status.turnstile_site_key);
     }
-    
+
     // 从 status 获取用户协议和隐私政策的启用状态
     setHasUserAgreement(status.user_agreement_enabled || false);
     setHasPrivacyPolicy(status.privacy_policy_enabled || false);
@@ -130,9 +130,33 @@ const LoginForm = () => {
     };
   }, []);
 
+  // 使用 ref 追踪是否已经显示过封禁弹窗
+  const bannedModalShownRef = React.useRef(false);
+
   useEffect(() => {
     if (searchParams.get('expired')) {
       showError(t('未登录或登录已过期，请重新登录'));
+    }
+
+    // 处理被封禁的情况（从OAuth回调重定向过来的）
+    const isBanned = searchParams.get('banned');
+    if (isBanned && !bannedModalShownRef.current) {
+      bannedModalShownRef.current = true;  // 标记已显示
+      // 清除URL参数（先清除，防止重复触发）
+      setSearchParams({});
+
+      Modal.warning({
+        title: t('账户已被封禁'),
+        content: (
+          <div>
+            <p>{t('您的账户已被封禁，如需解封请前往小黑屋使用解封码')}</p>
+          </div>
+        ),
+        okText: t('前往小黑屋'),
+        cancelText: t('取消'),
+        onOk: () => navigate('/blacklist'),
+        centered: true,
+      });
     }
   }, []);
 
@@ -166,7 +190,24 @@ const LoginForm = () => {
         showSuccess('登录成功！');
         setShowWeChatLoginModal(false);
       } else {
-        showError(message);
+        // 检查是否是封禁
+        if (message && message.includes('用户已被封禁')) {
+          setShowWeChatLoginModal(false);
+          Modal.warning({
+            title: t('账户已被封禁'),
+            content: (
+              <div>
+                <p>{t('您的账户已被封禁，如需解封请前往小黑屋使用解封码')}</p>
+              </div>
+            ),
+            okText: t('前往小黑屋'),
+            cancelText: t('取消'),
+            onOk: () => navigate('/blacklist'),
+            centered: true,
+          });
+        } else {
+          showError(message);
+        }
       }
     } catch (error) {
       showError('登录失败，请重试');
@@ -221,7 +262,23 @@ const LoginForm = () => {
           }
           navigate('/console');
         } else {
-          showError(message);
+          // 检查是否是用户被禁用
+          if (data && data.user_disabled) {
+            Modal.warning({
+              title: t('账户已被封禁'),
+              content: (
+                <div>
+                  <p>{t('您的账户已被封禁，如需解封请前往小黑屋使用解封码')}</p>
+                </div>
+              ),
+              okText: t('前往小黑屋'),
+              cancelText: t('取消'),
+              onOk: () => navigate('/blacklist'),
+              centered: true,
+            });
+          } else {
+            showError(message);
+          }
         }
       } else {
         showError('请输入用户名和密码！');
@@ -266,7 +323,23 @@ const LoginForm = () => {
         updateAPI();
         navigate('/');
       } else {
-        showError(message);
+        // 检查是否是封禁
+        if (message && message.includes('用户已被封禁')) {
+          Modal.warning({
+            title: t('账户已被封禁'),
+            content: (
+              <div>
+                <p>{t('您的账户已被封禁，如需解封请前往小黑屋使用解封码')}</p>
+              </div>
+            ),
+            okText: t('前往小黑屋'),
+            cancelText: t('取消'),
+            onOk: () => navigate('/blacklist'),
+            centered: true,
+          });
+        } else {
+          showError(message);
+        }
       }
     } catch (error) {
       showError('登录失败，请重试');
@@ -282,6 +355,10 @@ const LoginForm = () => {
     if (githubButtonDisabled) {
       return;
     }
+    // 清除可能残留的解封标记，防止OAuth回调误判为解封流程
+    localStorage.removeItem('unban_action');
+    localStorage.removeItem('unban_oauth_type');
+
     setGithubLoading(true);
     setGithubButtonDisabled(true);
     setGithubButtonText(t('正在跳转 GitHub...'));
@@ -307,11 +384,15 @@ const LoginForm = () => {
       showInfo(t('请先阅读并同意用户协议和隐私政策'));
       return;
     }
+    // 清除可能残留的解封标记，防止OAuth回调误判为解封流程
+    localStorage.removeItem('unban_action');
+    localStorage.removeItem('unban_oauth_type');
+
     setDiscordLoading(true);
     try {
       onDiscordOAuthClicked(status.discord_client_id, { shouldLogout: true });
     } finally {
-      // 由于重定向，这里不会执行到，但为了完整性添加
+      // 由于重定向，这里不会执行到，但为于完整性添加
       setTimeout(() => setDiscordLoading(false), 3000);
     }
   };
@@ -322,6 +403,10 @@ const LoginForm = () => {
       showInfo(t('请先阅读并同意用户协议和隐私政策'));
       return;
     }
+    // 清除可能残留的解封标记，防止OAuth回调误判为解封流程
+    localStorage.removeItem('unban_action');
+    localStorage.removeItem('unban_oauth_type');
+
     setOidcLoading(true);
     try {
       onOIDCClicked(
@@ -342,6 +427,10 @@ const LoginForm = () => {
       showInfo(t('请先阅读并同意用户协议和隐私政策'));
       return;
     }
+    // 清除可能残留的解封标记，防止OAuth回调误判为解封流程
+    localStorage.removeItem('unban_action');
+    localStorage.removeItem('unban_oauth_type');
+
     setLinuxdoLoading(true);
     try {
       onLinuxDOOAuthClicked(status.linuxdo_client_id, { shouldLogout: true });
@@ -612,11 +701,11 @@ const LoginForm = () => {
                             {t('隐私政策')}
                           </a>
                         </>
-                        )}
-                      </Text>
-                    </Checkbox>
-                  </div>
-                )}
+                      )}
+                    </Text>
+                  </Checkbox>
+                </div>
+              )}
 
               {!status.self_use_mode_enabled && (
                 <div className='mt-6 text-center text-sm'>
@@ -755,24 +844,24 @@ const LoginForm = () => {
                 status.wechat_login ||
                 status.linuxdo_oauth ||
                 status.telegram_oauth) && (
-                <>
-                  <Divider margin='12px' align='center'>
-                    {t('或')}
-                  </Divider>
+                  <>
+                    <Divider margin='12px' align='center'>
+                      {t('或')}
+                    </Divider>
 
-                  <div className='mt-4 text-center'>
-                    <Button
-                      theme='outline'
-                      type='tertiary'
-                      className='w-full !rounded-full'
-                      onClick={handleOtherLoginOptionsClick}
-                      loading={otherLoginOptionsLoading}
-                    >
-                      {t('其他登录选项')}
-                    </Button>
-                  </div>
-                </>
-              )}
+                    <div className='mt-4 text-center'>
+                      <Button
+                        theme='outline'
+                        type='tertiary'
+                        className='w-full !rounded-full'
+                        onClick={handleOtherLoginOptionsClick}
+                        loading={otherLoginOptionsLoading}
+                      >
+                        {t('其他登录选项')}
+                      </Button>
+                    </div>
+                  </>
+                )}
 
               {!status.self_use_mode_enabled && (
                 <div className='mt-6 text-center text-sm'>
@@ -884,14 +973,14 @@ const LoginForm = () => {
       />
       <div className='w-full max-w-sm mt-[60px]'>
         {showEmailLogin ||
-        !(
-          status.github_oauth ||
-          status.discord_oauth ||
-          status.oidc_enabled ||
-          status.wechat_login ||
-          status.linuxdo_oauth ||
-          status.telegram_oauth
-        )
+          !(
+            status.github_oauth ||
+            status.discord_oauth ||
+            status.oidc_enabled ||
+            status.wechat_login ||
+            status.linuxdo_oauth ||
+            status.telegram_oauth
+          )
           ? renderEmailLoginForm()
           : renderOAuthOptions()}
         {renderWeChatLoginModal()}

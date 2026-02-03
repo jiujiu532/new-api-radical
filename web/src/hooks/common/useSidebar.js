@@ -68,16 +68,25 @@ export const useSidebar = () => {
       redemption: true,
       user: true,
       fingerprint: true,
+      invitation_code: true,
       setting: true,
     },
   };
 
-  // 获取管理员配置
+  // 获取管理员配置（与默认配置合并，确保新增模块能显示）
   const adminConfig = useMemo(() => {
     if (statusState?.status?.SidebarModulesAdmin) {
       try {
-        const config = JSON.parse(statusState.status.SidebarModulesAdmin);
-        return config;
+        const serverConfig = JSON.parse(statusState.status.SidebarModulesAdmin);
+        // 深度合并：默认配置 + 服务端配置，确保新增的模块默认显示
+        const mergedConfig = {};
+        Object.keys(defaultAdminConfig).forEach((sectionKey) => {
+          mergedConfig[sectionKey] = {
+            ...defaultAdminConfig[sectionKey],
+            ...(serverConfig[sectionKey] || {}),
+          };
+        });
+        return mergedConfig;
       } catch (error) {
         return defaultAdminConfig;
       }
