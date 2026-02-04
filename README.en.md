@@ -68,6 +68,14 @@
 - 24-hour success rate display
 - Public access (no login required)
 
+### 🔧 Other Enhancements
+
+- **Model Redirect Template Management**: Batch prefix/suffix, one-click redirect, template import/export
+- **Random Redemption Code Generation**: Prefix support, range amounts, batch download
+- **Recent 100 Calls Cache**: Debug request/response raw data
+- **Admin Rate Limit Exemption**: Flexible RPM rate limiting
+- **LinuxDO OAuth Login**: Support LinuxDO community login
+
 ### 🗄️ Database Compatibility
 
 | Database | Status |

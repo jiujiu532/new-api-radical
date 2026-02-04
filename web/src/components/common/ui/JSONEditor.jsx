@@ -35,8 +35,14 @@ import {
   Col,
   Divider,
   Tooltip,
+  Dropdown,
+  Upload,
+  Toast,
+  Popover,
 } from '@douyinfe/semi-ui';
-import { IconPlus, IconDelete, IconAlertTriangle } from '@douyinfe/semi-icons';
+import { IconPlus, IconDelete, IconAlertTriangle, IconSync, IconDownload, IconUpload, IconRefresh } from '@douyinfe/semi-icons';
+import { generateRedirectMapping, countRedirectableModels, MODEL_REDIRECT_TEMPLATES } from '../../../constants/modelRedirectTemplates';
+import { API, showSuccess, showError, showInfo } from '../../../helpers';
 
 const { Text } = Typography;
 
@@ -60,6 +66,9 @@ const JSONEditor = ({
   editorType = 'keyValue',
   rules = [],
   formApi = null,
+  channelModels = [], // 渠道模型列表，用于一键重定向
+  onAutoRedirect = null, // 一键重定向回调
+  onStandardizeModels = null, // 模型标准化回调，用于更新模型列表
   ...props
 }) => {
   const { t } = useTranslation();
@@ -333,6 +342,421 @@ const JSONEditor = ({
     objectToKeyValueArray,
     keyValuePairs,
   ]);
+
+  // ===== 模板管理功能 =====
+
+  // 导出模板 - 下载当前模板库为JSON文件
+  const handleExportTemplates = useCallback(async () => {
+    try {
+      // 尝试从数据库获取自定义模板
+      let templates = MODEL_REDIRECT_TEMPLATES;
+      try {
+        const res = await API.get('/api/option/');
+        if (res?.data?.success && res?.data?.data) {
+          const customTemplateOption = res.data.data.find(
+            (opt) => opt.key === 'ModelRedirectTemplates'
+          );
+          if (customTemplateOption?.value) {
+            templates = JSON.parse(customTemplateOption.value);
+          }
+        }
+      } catch (e) {
+        // 使用内置模板
+      }
+
+      const dataStr = JSON.stringify(templates, null, 2);
+      const blob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'model_redirect_templates.json';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showSuccess(t('模板导出成功'));
+    } catch (error) {
+      showError(t('模板导出失败: ') + error.message);
+    }
+  }, [t]);
+
+  // 导入模板 - 上传JSON文件并保存到数据库
+  const handleImportTemplates = useCallback(async (file) => {
+    try {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const content = e.target.result;
+          const templates = JSON.parse(content);
+
+          // 验证模板格式
+          if (typeof templates !== 'object' || Array.isArray(templates)) {
+            showError(t('无效的模板格式，必须是 JSON 对象'));
+            return;
+          }
+
+          // 保存到数据库
+          const res = await API.put('/api/option/', {
+            key: 'ModelRedirectTemplates',
+            value: JSON.stringify(templates),
+          });
+
+          if (res?.data?.success) {
+            showSuccess(t('模板导入成功，共 {{count}} 个映射', { count: Object.keys(templates).length }));
+          } else {
+            showError(t('模板保存失败: ') + (res?.data?.message || '未知错误'));
+          }
+        } catch (parseError) {
+          showError(t('JSON 解析失败: ') + parseError.message);
+        }
+      };
+      reader.readAsText(file);
+    } catch (error) {
+      showError(t('文件读取失败: ') + error.message);
+    }
+    return false; // 阻止默认上传行为
+  }, [t]);
+
+  // 恢复默认模板 - 清除数据库中的自定义模板
+  const handleResetTemplates = useCallback(async () => {
+    try {
+      const res = await API.put('/api/option/', {
+        key: 'ModelRedirectTemplates',
+        value: '',
+      });
+
+      if (res?.data?.success) {
+        showSuccess(t('已恢复为默认模板'));
+      } else {
+        showError(t('恢复失败: ') + (res?.data?.message || '未知错误'));
+      }
+    } catch (error) {
+      showError(t('恢复失败: ') + error.message);
+    }
+  }, [t]);
+
+  // 简单填入模板 - 用于非模型重定向模式
+  const handleFillTemplate = useCallback(() => {
+    if (template) {
+      const jsonStr = JSON.stringify(template, null, 2);
+      setManualText(jsonStr);
+
+      // 对于 keyValue 类型，同时更新键值对
+      if (editorType === 'keyValue') {
+        try {
+          const obj = JSON.parse(jsonStr);
+          setKeyValuePairs(objectToKeyValueArray(obj));
+        } catch (e) {
+          // ignore
+        }
+      }
+
+      // 通知外部值变化
+      if (onChange) {
+        onChange(jsonStr);
+      }
+      showSuccess(t('已填入模板'));
+    }
+  }, [template, editorType, objectToKeyValueArray, onChange, t]);
+
+  // 模板管理下拉菜单
+  const templateDropdownMenu = useMemo(() => [
+    {
+      node: 'item',
+      key: 'export',
+      name: t('导出模板'),
+      icon: <IconDownload />,
+      onClick: handleExportTemplates,
+    },
+    {
+      node: 'item',
+      key: 'import',
+      name: (
+        <Upload
+          action=""
+          accept=".json"
+          showUploadList={false}
+          beforeUpload={({ file }) => {
+            handleImportTemplates(file.fileInstance);
+            return false;
+          }}
+        >
+          <span className="flex items-center gap-2">
+            <IconUpload />
+            {t('导入模板')}
+          </span>
+        </Upload>
+      ),
+    },
+    {
+      node: 'divider',
+    },
+    {
+      node: 'item',
+      key: 'reset',
+      name: t('恢复默认'),
+      icon: <IconRefresh />,
+      onClick: handleResetTemplates,
+    },
+  ], [t, handleExportTemplates, handleImportTemplates, handleResetTemplates]);
+
+  // ===== 批量添加/删除前缀/后缀功能 =====
+
+  // 前缀/后缀弹窗状态
+  const [prefixValue, setPrefixValue] = useState('');
+  const [suffixValue, setSuffixValue] = useState('');
+  const [prefixPreview, setPrefixPreview] = useState(null); // { matched: [], unmatched: [], action: 'add'|'remove', value: '' }
+  const [suffixPreview, setSuffixPreview] = useState(null);
+
+  // 解析输入（+xxx 或 -xxx）
+  const parseInput = useCallback((input) => {
+    if (!input || !input.trim()) return null;
+    const trimmed = input.trim();
+    if (trimmed.startsWith('+')) {
+      return { action: 'add', value: trimmed.slice(1) };
+    } else if (trimmed.startsWith('-')) {
+      return { action: 'remove', value: trimmed.slice(1) };
+    }
+    // 默认添加
+    return { action: 'add', value: trimmed };
+  }, []);
+
+  // 预览前缀操作
+  const handlePrefixPreview = useCallback(() => {
+    const parsed = parseInput(prefixValue);
+    if (!parsed || !parsed.value) {
+      showError(t('请输入有效的前缀'));
+      return;
+    }
+
+    const matched = [];
+    const unmatched = [];
+
+    keyValuePairs.forEach(pair => {
+      if (parsed.action === 'remove') {
+        // 删除前缀：检查是否有这个前缀
+        if (pair.key.startsWith(parsed.value)) {
+          matched.push({ old: pair.key, new: pair.key.slice(parsed.value.length) });
+        } else {
+          unmatched.push(pair.key);
+        }
+      } else {
+        // 添加前缀：所有都匹配
+        matched.push({ old: pair.key, new: parsed.value + pair.key });
+      }
+    });
+
+    setPrefixPreview({ matched, unmatched, action: parsed.action, value: parsed.value });
+  }, [prefixValue, keyValuePairs, parseInput, t]);
+
+  // 预览后缀操作
+  const handleSuffixPreview = useCallback(() => {
+    const parsed = parseInput(suffixValue);
+    if (!parsed || !parsed.value) {
+      showError(t('请输入有效的后缀'));
+      return;
+    }
+
+    const matched = [];
+    const unmatched = [];
+
+    keyValuePairs.forEach(pair => {
+      if (parsed.action === 'remove') {
+        // 删除后缀：检查是否有这个后缀
+        if (pair.key.endsWith(parsed.value)) {
+          matched.push({ old: pair.key, new: pair.key.slice(0, -parsed.value.length) });
+        } else {
+          unmatched.push(pair.key);
+        }
+      } else {
+        // 添加后缀：所有都匹配
+        matched.push({ old: pair.key, new: pair.key + parsed.value });
+      }
+    });
+
+    setSuffixPreview({ matched, unmatched, action: parsed.action, value: parsed.value });
+  }, [suffixValue, keyValuePairs, parseInput, t]);
+
+  // 执行前缀修改
+  const handlePrefixConfirm = useCallback(() => {
+    if (!prefixPreview || prefixPreview.matched.length === 0) return;
+
+    const keyMap = {};
+    prefixPreview.matched.forEach(item => {
+      keyMap[item.old] = item.new;
+    });
+
+    const newPairs = keyValuePairs.map(pair => ({
+      ...pair,
+      key: keyMap[pair.key] !== undefined ? keyMap[pair.key] : pair.key,
+    }));
+
+    setKeyValuePairs(newPairs);
+
+    // 同步更新 JSON
+    const newObj = {};
+    newPairs.forEach(pair => {
+      if (pair.key.trim()) {
+        newObj[pair.key] = pair.value;
+      }
+    });
+
+    const jsonString = JSON.stringify(newObj, null, 2);
+    setManualText(jsonString);
+    if (formApi && field) {
+      formApi.setValue(field, jsonString);
+    }
+    onChange?.(jsonString);
+
+    const actionText = prefixPreview.action === 'add' ? t('添加') : t('删除');
+    showSuccess(t('已{{action}}前缀，处理 {{matched}} 个，跳过 {{unmatched}} 个', {
+      action: actionText,
+      matched: prefixPreview.matched.length,
+      unmatched: prefixPreview.unmatched.length
+    }));
+
+    setPrefixPreview(null);
+    setPrefixValue('');
+  }, [prefixPreview, keyValuePairs, formApi, field, onChange, t]);
+
+  // 执行后缀修改
+  const handleSuffixConfirm = useCallback(() => {
+    if (!suffixPreview || suffixPreview.matched.length === 0) return;
+
+    const keyMap = {};
+    suffixPreview.matched.forEach(item => {
+      keyMap[item.old] = item.new;
+    });
+
+    const newPairs = keyValuePairs.map(pair => ({
+      ...pair,
+      key: keyMap[pair.key] !== undefined ? keyMap[pair.key] : pair.key,
+    }));
+
+    setKeyValuePairs(newPairs);
+
+    // 同步更新 JSON
+    const newObj = {};
+    newPairs.forEach(pair => {
+      if (pair.key.trim()) {
+        newObj[pair.key] = pair.value;
+      }
+    });
+
+    const jsonString = JSON.stringify(newObj, null, 2);
+    setManualText(jsonString);
+    if (formApi && field) {
+      formApi.setValue(field, jsonString);
+    }
+    onChange?.(jsonString);
+
+    const actionText = suffixPreview.action === 'add' ? t('添加') : t('删除');
+    showSuccess(t('已{{action}}后缀，处理 {{matched}} 个，跳过 {{unmatched}} 个', {
+      action: actionText,
+      matched: suffixPreview.matched.length,
+      unmatched: suffixPreview.unmatched.length
+    }));
+
+    setSuffixPreview(null);
+    setSuffixValue('');
+  }, [suffixPreview, keyValuePairs, formApi, field, onChange, t]);
+
+
+  // 一键重定向 - 根据渠道模型列表自动生成重定向映射，并标准化模型列表
+  const handleAutoRedirect = useCallback(async () => {
+    if (!channelModels || channelModels.length === 0) {
+      showInfo(t('模型列表为空'));
+      return;
+    }
+
+    // 获取现有的映射
+    let existingMapping = {};
+    try {
+      if (typeof value === 'string' && value.trim()) {
+        existingMapping = JSON.parse(value);
+      } else if (typeof value === 'object' && value !== null) {
+        existingMapping = value;
+      }
+    } catch {
+      existingMapping = {};
+    }
+
+    // 尝试从数据库获取自定义模板
+    let customTemplates = null;
+    try {
+      const res = await API.get('/api/option/');
+      if (res?.data?.success && res?.data?.data) {
+        const customTemplateOption = res.data.data.find(
+          (opt) => opt.key === 'ModelRedirectTemplates'
+        );
+        if (customTemplateOption?.value) {
+          customTemplates = JSON.parse(customTemplateOption.value);
+        }
+      }
+    } catch (e) {
+      // 使用内置模板
+    }
+
+    // 生成新的重定向映射
+    const newMapping = generateRedirectMapping(channelModels, existingMapping, customTemplates);
+
+    if (Object.keys(newMapping).length === 0) {
+      return;
+    }
+
+    const mappingString = JSON.stringify(newMapping, null, 2);
+
+    if (formApi && field) {
+      formApi.setValue(field, mappingString);
+    }
+
+    setManualText(mappingString);
+    setKeyValuePairs(objectToKeyValueArray(newMapping, keyValuePairs));
+    onChange?.(mappingString);
+    setJsonError('');
+
+    // 调用外部回调（如果有）
+    onAutoRedirect?.(newMapping);
+
+    // 模型标准化：用标准模型名替换原始模型名
+    if (onStandardizeModels) {
+      // newMapping 格式: { "标准名": "原始名" }
+      // 需要从模型列表中删除原始名，添加标准名
+      const standardNames = Object.keys(newMapping);
+      const originalNames = Object.values(newMapping);
+
+      // 过滤掉原始名，添加标准名
+      const newModels = channelModels
+        .filter(model => !originalNames.includes(model))
+        .concat(standardNames.filter(name => !channelModels.includes(name)));
+
+      // 去重
+      const uniqueModels = [...new Set(newModels)];
+
+      onStandardizeModels(uniqueModels);
+      showSuccess(t('一键重定向完成，生成 {{count}} 个映射，标准化 {{modelCount}} 个模型', {
+        count: Object.keys(newMapping).length,
+        modelCount: standardNames.length
+      }));
+    } else {
+      showSuccess(t('一键重定向完成，生成 {{count}} 个映射', { count: Object.keys(newMapping).length }));
+    }
+  }, [
+    channelModels,
+    value,
+    onChange,
+    formApi,
+    field,
+    objectToKeyValueArray,
+    keyValuePairs,
+    onAutoRedirect,
+    onStandardizeModels,
+  ]);
+
+  // 计算可重定向的模型数量
+  const redirectableCount = useMemo(() => {
+    return countRedirectableModels(channelModels);
+  }, [channelModels]);
 
   // 渲染值输入控件（支持嵌套）
   const renderValueInput = (pairId, value) => {
@@ -642,11 +1066,259 @@ const JSONEditor = ({
               <TabPane tab={t('手动编辑')} itemKey='manual' />
             </Tabs>
 
-            {template && templateLabel && (
-              <Button type='tertiary' onClick={fillTemplate} size='small'>
-                {templateLabel}
-              </Button>
-            )}
+            <div className='flex gap-1'>
+              {/* 批量前缀按钮 - 仅在模型重定向模式下显示 */}
+              {onStandardizeModels && (
+                <Popover
+                  trigger='click'
+                  position='bottomLeft'
+                  onVisibleChange={(visible) => {
+                    if (!visible) {
+                      setPrefixPreview(null);
+                      setPrefixValue('');
+                    }
+                  }}
+                  content={
+                    <div className='p-3' style={{ width: 320, maxHeight: 400, overflow: 'auto' }}>
+                      <Text type='secondary' size='small' className='block mb-2'>
+                        {t('+xxx 添加前缀，-xxx 删除前缀')}
+                      </Text>
+                      <div className='flex gap-1 mb-2'>
+                        <Input
+                          placeholder={t('例如: +gpt- 或 -GLM-')}
+                          value={prefixValue}
+                          onChange={setPrefixValue}
+                          size='small'
+                          style={{ flex: 1 }}
+                        />
+                        <Button size='small' onClick={handlePrefixPreview}>
+                          {t('预览')}
+                        </Button>
+                      </div>
+
+                      {/* 预览结果 */}
+                      {prefixPreview && (
+                        <div className='mt-2'>
+                          {prefixPreview.matched.length > 0 && (
+                            <div className='mb-2'>
+                              <Text type='success' size='small' className='block mb-1'>
+                                ✓ {t('将修改')} ({prefixPreview.matched.length})
+                              </Text>
+                              <div style={{ maxHeight: 100, overflow: 'auto', background: 'var(--semi-color-fill-0)', borderRadius: 4, padding: 4 }}>
+                                {prefixPreview.matched.map((item, idx) => (
+                                  <div key={idx} style={{ fontSize: 12 }}>
+                                    <Text delete>{item.old}</Text> → <Text type='success'>{item.new}</Text>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {prefixPreview.unmatched.length > 0 && (
+                            <div className='mb-2'>
+                              <Text type='tertiary' size='small' className='block mb-1'>
+                                ○ {t('跳过')} ({prefixPreview.unmatched.length})
+                              </Text>
+                              <div style={{ maxHeight: 60, overflow: 'auto', background: 'var(--semi-color-fill-0)', borderRadius: 4, padding: 4 }}>
+                                {prefixPreview.unmatched.map((key, idx) => (
+                                  <div key={idx} style={{ fontSize: 12 }}>
+                                    <Text type='tertiary'>{key}</Text>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          <div className='flex justify-end gap-1 mt-2'>
+                            <Button size='small' onClick={() => setPrefixPreview(null)}>
+                              {t('取消')}
+                            </Button>
+                            <Button
+                              size='small'
+                              type='primary'
+                              disabled={prefixPreview.matched.length === 0}
+                              onClick={handlePrefixConfirm}
+                            >
+                              {t('确认修改')}
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  }
+                >
+                  <Button
+                    type='tertiary'
+                    size='small'
+                    title={t('批量添加/删除前缀\n+xxx 添加前缀\n-xxx 删除前缀')}
+                  >
+                    {t('前缀')}
+                  </Button>
+                </Popover>
+              )}
+
+              {/* 批量后缀按钮 - 仅在模型重定向模式下显示 */}
+              {onStandardizeModels && (
+                <Popover
+                  trigger='click'
+                  position='bottomLeft'
+                  onVisibleChange={(visible) => {
+                    if (!visible) {
+                      setSuffixPreview(null);
+                      setSuffixValue('');
+                    }
+                  }}
+                  content={
+                    <div className='p-3' style={{ width: 320, maxHeight: 400, overflow: 'auto' }}>
+                      <Text type='secondary' size='small' className='block mb-2'>
+                        {t('+xxx 添加后缀，-xxx 删除后缀')}
+                      </Text>
+                      <div className='flex gap-1 mb-2'>
+                        <Input
+                          placeholder={t('例如: +-pro 或 --mini')}
+                          value={suffixValue}
+                          onChange={setSuffixValue}
+                          size='small'
+                          style={{ flex: 1 }}
+                        />
+                        <Button size='small' onClick={handleSuffixPreview}>
+                          {t('预览')}
+                        </Button>
+                      </div>
+
+                      {/* 预览结果 */}
+                      {suffixPreview && (
+                        <div className='mt-2'>
+                          {suffixPreview.matched.length > 0 && (
+                            <div className='mb-2'>
+                              <Text type='success' size='small' className='block mb-1'>
+                                ✓ {t('将修改')} ({suffixPreview.matched.length})
+                              </Text>
+                              <div style={{ maxHeight: 100, overflow: 'auto', background: 'var(--semi-color-fill-0)', borderRadius: 4, padding: 4 }}>
+                                {suffixPreview.matched.map((item, idx) => (
+                                  <div key={idx} style={{ fontSize: 12 }}>
+                                    <Text delete>{item.old}</Text> → <Text type='success'>{item.new}</Text>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {suffixPreview.unmatched.length > 0 && (
+                            <div className='mb-2'>
+                              <Text type='tertiary' size='small' className='block mb-1'>
+                                ○ {t('跳过')} ({suffixPreview.unmatched.length})
+                              </Text>
+                              <div style={{ maxHeight: 60, overflow: 'auto', background: 'var(--semi-color-fill-0)', borderRadius: 4, padding: 4 }}>
+                                {suffixPreview.unmatched.map((key, idx) => (
+                                  <div key={idx} style={{ fontSize: 12 }}>
+                                    <Text type='tertiary'>{key}</Text>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          <div className='flex justify-end gap-1 mt-2'>
+                            <Button size='small' onClick={() => setSuffixPreview(null)}>
+                              {t('取消')}
+                            </Button>
+                            <Button
+                              size='small'
+                              type='primary'
+                              disabled={suffixPreview.matched.length === 0}
+                              onClick={handleSuffixConfirm}
+                            >
+                              {t('确认修改')}
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  }
+                >
+                  <Button
+                    type='tertiary'
+                    size='small'
+                    title={t('批量添加/删除后缀\n+xxx 添加后缀\n-xxx 删除后缀')}
+                  >
+                    {t('后缀')}
+                  </Button>
+                </Popover>
+              )}
+
+              {/* 一键重定向按钮 - 仅在模型重定向模式下显示 */}
+              {onStandardizeModels && (
+                <Tooltip content={
+                  redirectableCount > 0
+                    ? t('根据模型列表自动生成重定向映射，可重定向 {{count}} 个模型', { count: redirectableCount })
+                    : t('根据内置模板库自动生成重定向映射')
+                }>
+                  <Button
+                    type='primary'
+                    theme='light'
+                    onClick={handleAutoRedirect}
+                    size='small'
+                    icon={<IconSync />}
+                  >
+                    {t('一键重定向')}
+                  </Button>
+                </Tooltip>
+              )}
+
+              {/* 填入模板按钮 - 模型重定向模式下显示复杂下拉菜单 */}
+              {template && templateLabel && onStandardizeModels && (
+                <Dropdown
+                  trigger='click'
+                  position='bottomRight'
+                  menu={templateDropdownMenu}
+                  render={
+                    <Dropdown.Menu>
+                      <Dropdown.Item
+                        icon={<IconDownload />}
+                        onClick={handleExportTemplates}
+                      >
+                        {t('导出模板')}
+                      </Dropdown.Item>
+                      <Dropdown.Item>
+                        <Upload
+                          action=""
+                          accept=".json"
+                          showUploadList={false}
+                          beforeUpload={({ file }) => {
+                            handleImportTemplates(file.fileInstance);
+                            return false;
+                          }}
+                        >
+                          <span className="flex items-center gap-2">
+                            <IconUpload />
+                            {t('导入模板')}
+                          </span>
+                        </Upload>
+                      </Dropdown.Item>
+                      <Dropdown.Divider />
+                      <Dropdown.Item
+                        icon={<IconRefresh />}
+                        onClick={handleResetTemplates}
+                      >
+                        {t('恢复默认')}
+                      </Dropdown.Item>
+                    </Dropdown.Menu>
+                  }
+                >
+                  <Button type='tertiary' size='small'>
+                    {templateLabel} ▼
+                  </Button>
+                </Dropdown>
+              )}
+
+              {/* 填入模板按钮 - 非模型重定向模式下显示简单按钮 */}
+              {template && templateLabel && !onStandardizeModels && (
+                <Button
+                  type='tertiary'
+                  size='small'
+                  onClick={handleFillTemplate}
+                >
+                  {templateLabel}
+                </Button>
+              )}
+            </div>
           </div>
         }
         headerStyle={{ padding: '12px 16px' }}
