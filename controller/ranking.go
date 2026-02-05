@@ -9,6 +9,57 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// 排名功能默认配置
+const (
+	DefaultRankingLimit = 50
+)
+
+// RankingParams 排名查询通用参数
+type RankingParams struct {
+	StartTimestamp int64
+	EndTimestamp   int64
+	Limit          int
+	ShowFullIP     bool
+	ShowUserId     bool
+}
+
+// parseRankingParams 解析排名查询通用参数
+// 管理员可以看到完整IP和用户ID，普通用户只能看到打码的IP且没有用户ID
+func parseRankingParams(c *gin.Context) RankingParams {
+	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	limit, _ := strconv.Atoi(c.Query("limit"))
+	if limit <= 0 {
+		limit = DefaultRankingLimit
+	}
+
+	isAdmin := isAdminRole(c)
+	return RankingParams{
+		StartTimestamp: startTimestamp,
+		EndTimestamp:   endTimestamp,
+		Limit:          limit,
+		ShowFullIP:     isAdmin,
+		ShowUserId:     isAdmin,
+	}
+}
+
+// rankingSuccess 返回排名查询成功响应
+func rankingSuccess(c *gin.Context, data interface{}) {
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    data,
+	})
+}
+
+// rankingError 返回排名查询错误响应
+func rankingError(c *gin.Context, err error) {
+	c.JSON(http.StatusOK, gin.H{
+		"success": false,
+		"message": err.Error(),
+	})
+}
+
 // isAdminRole 判断当前用户是否为管理员
 func isAdminRole(c *gin.Context) bool {
 	role, exists := c.Get("role")
@@ -32,33 +83,13 @@ func isAdminRole(c *gin.Context) bool {
 // @Success 200 {object} map[string]interface{}
 // @Router /api/ranking/user_call [get]
 func GetUserCallRanking(c *gin.Context) {
-	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
-	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
-	limit, _ := strconv.Atoi(c.Query("limit"))
-	if limit <= 0 {
-		limit = 50
-	}
-
-	// 判断是否为管理员
-	// 管理员可以看到完整IP和用户ID，普通用户只能看到打码的IP且没有用户ID
-	isAdmin := isAdminRole(c)
-	showFullIP := isAdmin
-	showUserId := isAdmin
-
-	data, err := model.GetUserCallRanking(startTimestamp, endTimestamp, limit, showFullIP, showUserId)
+	p := parseRankingParams(c)
+	data, err := model.GetUserCallRanking(p.StartTimestamp, p.EndTimestamp, p.Limit, p.ShowFullIP, p.ShowUserId)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		rankingError(c, err)
 		return
 	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data":    data,
-	})
+	rankingSuccess(c, data)
 }
 
 // GetIPCallRanking 获取IP调用排行
@@ -71,30 +102,13 @@ func GetUserCallRanking(c *gin.Context) {
 // @Success 200 {object} map[string]interface{}
 // @Router /api/ranking/ip_call [get]
 func GetIPCallRanking(c *gin.Context) {
-	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
-	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
-	limit, _ := strconv.Atoi(c.Query("limit"))
-	if limit <= 0 {
-		limit = 50
-	}
-
-	isAdmin := isAdminRole(c)
-	showFullIP := isAdmin
-
-	data, err := model.GetIPCallRanking(startTimestamp, endTimestamp, limit, showFullIP)
+	p := parseRankingParams(c)
+	data, err := model.GetIPCallRanking(p.StartTimestamp, p.EndTimestamp, p.Limit, p.ShowFullIP)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		rankingError(c, err)
 		return
 	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data":    data,
-	})
+	rankingSuccess(c, data)
 }
 
 // GetTokenConsumeRanking 获取Token消耗排行
@@ -107,30 +121,13 @@ func GetIPCallRanking(c *gin.Context) {
 // @Success 200 {object} map[string]interface{}
 // @Router /api/ranking/token_consume [get]
 func GetTokenConsumeRanking(c *gin.Context) {
-	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
-	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
-	limit, _ := strconv.Atoi(c.Query("limit"))
-	if limit <= 0 {
-		limit = 50
-	}
-
-	isAdmin := isAdminRole(c)
-	showUserId := isAdmin
-
-	data, err := model.GetTokenConsumeRanking(startTimestamp, endTimestamp, limit, showUserId)
+	p := parseRankingParams(c)
+	data, err := model.GetTokenConsumeRanking(p.StartTimestamp, p.EndTimestamp, p.Limit, p.ShowUserId)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		rankingError(c, err)
 		return
 	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data":    data,
-	})
+	rankingSuccess(c, data)
 }
 
 // GetUserIPCountRanking 获取用户IP数排行
@@ -143,31 +140,13 @@ func GetTokenConsumeRanking(c *gin.Context) {
 // @Success 200 {object} map[string]interface{}
 // @Router /api/ranking/user_ip_count [get]
 func GetUserIPCountRanking(c *gin.Context) {
-	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
-	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
-	limit, _ := strconv.Atoi(c.Query("limit"))
-	if limit <= 0 {
-		limit = 50
-	}
-
-	isAdmin := isAdminRole(c)
-	showFullIP := isAdmin
-	showUserId := isAdmin
-
-	data, err := model.GetUserIPCountRanking(startTimestamp, endTimestamp, limit, showFullIP, showUserId)
+	p := parseRankingParams(c)
+	data, err := model.GetUserIPCountRanking(p.StartTimestamp, p.EndTimestamp, p.Limit, p.ShowFullIP, p.ShowUserId)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		rankingError(c, err)
 		return
 	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data":    data,
-	})
+	rankingSuccess(c, data)
 }
 
 // GetRecentIPRanking 获取1分钟内IP数排行
@@ -178,29 +157,13 @@ func GetUserIPCountRanking(c *gin.Context) {
 // @Success 200 {object} map[string]interface{}
 // @Router /api/ranking/recent_ip [get]
 func GetRecentIPRanking(c *gin.Context) {
-	limit, _ := strconv.Atoi(c.Query("limit"))
-	if limit <= 0 {
-		limit = 50
-	}
-
-	isAdmin := isAdminRole(c)
-	showFullIP := isAdmin
-	showUserId := isAdmin
-
-	data, err := model.GetRecentIPRanking(limit, showFullIP, showUserId)
+	p := parseRankingParams(c)
+	data, err := model.GetRecentIPRanking(p.Limit, p.ShowFullIP, p.ShowUserId)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		rankingError(c, err)
 		return
 	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data":    data,
-	})
+	rankingSuccess(c, data)
 }
 
 // GetQuotaBalanceRanking 获取囤囤鼠排行（用户余额排行）
@@ -211,26 +174,11 @@ func GetRecentIPRanking(c *gin.Context) {
 // @Success 200 {object} map[string]interface{}
 // @Router /api/ranking/quota_balance [get]
 func GetQuotaBalanceRanking(c *gin.Context) {
-	limit, _ := strconv.Atoi(c.Query("limit"))
-	if limit <= 0 {
-		limit = 50
-	}
-
-	isAdmin := isAdminRole(c)
-	showUserId := isAdmin
-
-	data, err := model.GetQuotaBalanceRanking(limit, showUserId)
+	p := parseRankingParams(c)
+	data, err := model.GetQuotaBalanceRanking(p.Limit, p.ShowUserId)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		rankingError(c, err)
 		return
 	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data":    data,
-	})
+	rankingSuccess(c, data)
 }

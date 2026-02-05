@@ -140,32 +140,41 @@ func DiscordOAuth(c *gin.Context) {
 			return
 		}
 	} else {
-		if common.RegisterEnabled {
-			if discordUser.ID != "" {
-				user.Username = discordUser.ID
-			} else {
-				user.Username = "discord_" + strconv.Itoa(model.GetMaxUserId()+1)
-			}
-			if discordUser.Name != "" {
-				user.DisplayName = discordUser.Name
-			} else {
-				user.DisplayName = "Discord User"
-			}
-			err := user.Insert(0)
-			if err != nil {
-				c.JSON(http.StatusOK, gin.H{
-					"success": false,
-					"message": err.Error(),
-				})
-				return
-			}
-		} else {
+		// 新用户注册 - 使用通用 OAuth 注册处理
+		displayName := discordUser.Name
+		if displayName == "" {
+			displayName = "Discord User"
+		}
+		
+		oauthId := discordUser.ID
+		if oauthId == "" {
+			oauthId = "discord_" + strconv.Itoa(model.GetMaxUserId()+1)
+		}
+		
+		result, err := HandleOAuthNewUser(c, OAuthUserInfo{
+			OAuthType:   "discord",
+			OAuthId:     oauthId,
+			DisplayName: displayName,
+		})
+		
+		if err != nil {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
-				"message": "管理员关闭了新用户注册",
+				"message": err.Error(),
 			})
 			return
 		}
+		
+		if result.NeedInvitationCode {
+			c.JSON(http.StatusOK, gin.H{
+				"success": true,
+				"message": "require_invitation_code",
+				"data":    result.RequireInvitationData,
+			})
+			return
+		}
+		
+		user = *result.User
 	}
 
 	if user.Status != common.UserStatusEnabled {

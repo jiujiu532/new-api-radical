@@ -1,11 +1,66 @@
 package model
 
 import (
+	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 )
+
+// 排名缓存配置
+const (
+	RankingCacheDuration = 1 * time.Minute // 缓存有效期 1 分钟
+)
+
+// rankingCache 排名缓存结构
+type rankingCache struct {
+	data      interface{}
+	expiredAt time.Time
+}
+
+// rankingCacheStore 排名缓存存储
+var (
+	rankingCacheStore = make(map[string]*rankingCache)
+	rankingCacheMutex sync.RWMutex
+)
+
+// getRankingCache 获取缓存
+func getRankingCache(key string) (interface{}, bool) {
+	rankingCacheMutex.RLock()
+	defer rankingCacheMutex.RUnlock()
+
+	cache, exists := rankingCacheStore[key]
+	if !exists {
+		return nil, false
+	}
+	if time.Now().After(cache.expiredAt) {
+		return nil, false
+	}
+	return cache.data, true
+}
+
+// setRankingCache 设置缓存
+func setRankingCache(key string, data interface{}) {
+	rankingCacheMutex.Lock()
+	defer rankingCacheMutex.Unlock()
+
+	rankingCacheStore[key] = &rankingCache{
+		data:      data,
+		expiredAt: time.Now().Add(RankingCacheDuration),
+	}
+}
+
+// buildRankingCacheKey 构建缓存 key
+// 区分：接口类型 + 时间范围 + 是否管理员
+func buildRankingCacheKey(rankingType string, startTs, endTs int64, isAdmin bool) string {
+	adminFlag := "user"
+	if isAdmin {
+		adminFlag = "admin"
+	}
+	return fmt.Sprintf("ranking:%s:%d:%d:%s", rankingType, startTs, endTs, adminFlag)
+}
 
 // UserCallRanking 用户调用排行
 type UserCallRanking struct {
@@ -133,6 +188,13 @@ func GetUserCallRanking(startTimestamp, endTimestamp int64, limit int, showFullI
 		limit = 50
 	}
 
+	// 检查缓存
+	isAdmin := showFullIP && showUserId
+	cacheKey := buildRankingCacheKey("user_call", startTimestamp, endTimestamp, isAdmin)
+	if cached, ok := getRankingCache(cacheKey); ok {
+		return cached.([]UserCallRanking), nil
+	}
+
 	// 先获取调用次数排行
 	type CallResult struct {
 		UserId    int    `gorm:"column:user_id"`
@@ -168,7 +230,41 @@ func GetUserCallRanking(startTimestamp, endTimestamp int64, limit int, showFullI
 		return nil, err
 	}
 
-	// 获取每个用户的IP列表
+	if len(callResults) == 0 {
+		return []UserCallRanking{}, nil
+	}
+
+	// 收集所有用户ID，用于批量查询
+	userIDs := make([]int, len(callResults))
+	for i, cr := range callResults {
+		userIDs[i] = cr.UserId
+	}
+
+	// 批量获取所有用户的IP列表（一次查询代替 N 次查询）
+	type UserIPResult struct {
+		UserId int    `gorm:"column:user_id"`
+		IP     string `gorm:"column:ip"`
+	}
+	var userIPResults []UserIPResult
+
+	ipTx := LOG_DB.Table("logs").
+		Select("DISTINCT user_id, ip").
+		Where("user_id IN ? AND type = ? AND ip != ''", userIDs, LogTypeConsume)
+	if startTimestamp > 0 {
+		ipTx = ipTx.Where("created_at >= ?", startTimestamp)
+	}
+	if endTimestamp > 0 {
+		ipTx = ipTx.Where("created_at <= ?", endTimestamp)
+	}
+	ipTx.Find(&userIPResults)
+
+	// 在内存中按用户ID分组
+	userIPMap := make(map[int][]string)
+	for _, uip := range userIPResults {
+		userIPMap[uip.UserId] = append(userIPMap[uip.UserId], uip.IP)
+	}
+
+	// 构建结果
 	results := make([]UserCallRanking, len(callResults))
 	for i, cr := range callResults {
 		results[i] = UserCallRanking{
@@ -181,23 +277,14 @@ func GetUserCallRanking(startTimestamp, endTimestamp int64, limit int, showFullI
 			results[i].UserId = intPtr(cr.UserId)
 		}
 
-		// 获取用户的唯一IP列表
-		var ipList []string
-		ipTx := LOG_DB.Table("logs").
-			Select("DISTINCT ip").
-			Where("user_id = ? AND type = ? AND ip != ''", cr.UserId, LogTypeConsume)
-		if startTimestamp > 0 {
-			ipTx = ipTx.Where("created_at >= ?", startTimestamp)
-		}
-		if endTimestamp > 0 {
-			ipTx = ipTx.Where("created_at <= ?", endTimestamp)
-		}
-		ipTx.Pluck("ip", &ipList)
-
-		// 根据权限处理IP
+		// 从 map 中获取 IP 列表
+		ipList := userIPMap[cr.UserId]
 		results[i].IpList = processIPList(ipList, showFullIP)
 		results[i].IpCount = len(ipList)
 	}
+
+	// 设置缓存
+	setRankingCache(cacheKey, results)
 
 	return results, nil
 }
@@ -207,6 +294,12 @@ func GetUserCallRanking(startTimestamp, endTimestamp int64, limit int, showFullI
 func GetIPCallRanking(startTimestamp, endTimestamp int64, limit int, showFullIP bool) ([]IPCallRanking, error) {
 	if limit <= 0 || limit > 100 {
 		limit = 50
+	}
+
+	// 检查缓存
+	cacheKey := buildRankingCacheKey("ip_call", startTimestamp, endTimestamp, showFullIP)
+	if cached, ok := getRankingCache(cacheKey); ok {
+		return cached.([]IPCallRanking), nil
 	}
 
 	// 获取管理员用户ID列表，用于排除（兼容分库部署）
@@ -243,7 +336,44 @@ func GetIPCallRanking(startTimestamp, endTimestamp int64, limit int, showFullIP 
 		return nil, err
 	}
 
-	// 获取每个IP的用户列表
+	if len(ipResults) == 0 {
+		return []IPCallRanking{}, nil
+	}
+
+	// 收集所有 IP，用于批量查询
+	ips := make([]string, len(ipResults))
+	for i, ir := range ipResults {
+		ips[i] = ir.IP
+	}
+
+	// 批量获取所有 IP 的用户列表（一次查询代替 N 次查询）
+	type IPUserResult struct {
+		IP       string `gorm:"column:ip"`
+		Username string `gorm:"column:username"`
+	}
+	var ipUserResults []IPUserResult
+
+	userTx := LOG_DB.Table("logs").
+		Select("DISTINCT ip, username").
+		Where("ip IN ? AND type = ?", ips, LogTypeConsume)
+	if len(adminIDs) > 0 {
+		userTx = userTx.Where("user_id NOT IN ?", adminIDs)
+	}
+	if startTimestamp > 0 {
+		userTx = userTx.Where("created_at >= ?", startTimestamp)
+	}
+	if endTimestamp > 0 {
+		userTx = userTx.Where("created_at <= ?", endTimestamp)
+	}
+	userTx.Find(&ipUserResults)
+
+	// 在内存中按 IP 分组
+	ipUserMap := make(map[string][]string)
+	for _, iur := range ipUserResults {
+		ipUserMap[iur.IP] = append(ipUserMap[iur.IP], iur.Username)
+	}
+
+	// 构建结果
 	results := make([]IPCallRanking, len(ipResults))
 	for i, ir := range ipResults {
 		results[i] = IPCallRanking{
@@ -251,25 +381,14 @@ func GetIPCallRanking(startTimestamp, endTimestamp int64, limit int, showFullIP 
 			CallCount: ir.CallCount,
 		}
 
-		// 获取使用该IP的用户列表（排除管理员）
-		var userList []string
-		userTx := LOG_DB.Table("logs").
-			Select("DISTINCT username").
-			Where("ip = ? AND type = ?", ir.IP, LogTypeConsume)
-		if len(adminIDs) > 0 {
-			userTx = userTx.Where("user_id NOT IN ?", adminIDs)
-		}
-		if startTimestamp > 0 {
-			userTx = userTx.Where("created_at >= ?", startTimestamp)
-		}
-		if endTimestamp > 0 {
-			userTx = userTx.Where("created_at <= ?", endTimestamp)
-		}
-		userTx.Pluck("username", &userList)
-
+		// 从 map 中获取用户列表
+		userList := ipUserMap[ir.IP]
 		results[i].UserList = userList
 		results[i].UserCount = len(userList)
 	}
+
+	// 设置缓存
+	setRankingCache(cacheKey, results)
 
 	return results, nil
 }
@@ -279,6 +398,12 @@ func GetIPCallRanking(startTimestamp, endTimestamp int64, limit int, showFullIP 
 func GetTokenConsumeRanking(startTimestamp, endTimestamp int64, limit int, showUserId bool) ([]TokenConsumeRanking, error) {
 	if limit <= 0 || limit > 100 {
 		limit = 50
+	}
+
+	// 检查缓存
+	cacheKey := buildRankingCacheKey("token_consume", startTimestamp, endTimestamp, showUserId)
+	if cached, ok := getRankingCache(cacheKey); ok {
+		return cached.([]TokenConsumeRanking), nil
 	}
 
 	// 获取管理员用户ID列表，用于排除（兼容分库部署）
@@ -335,6 +460,9 @@ func GetTokenConsumeRanking(startTimestamp, endTimestamp int64, limit int, showU
 		}
 	}
 
+	// 设置缓存
+	setRankingCache(cacheKey, results)
+
 	return results, nil
 }
 
@@ -343,6 +471,13 @@ func GetTokenConsumeRanking(startTimestamp, endTimestamp int64, limit int, showU
 func GetUserIPCountRanking(startTimestamp, endTimestamp int64, limit int, showFullIP bool, showUserId bool) ([]UserIPCountRanking, error) {
 	if limit <= 0 || limit > 100 {
 		limit = 50
+	}
+
+	// 检查缓存
+	isAdmin := showFullIP && showUserId
+	cacheKey := buildRankingCacheKey("user_ip_count", startTimestamp, endTimestamp, isAdmin)
+	if cached, ok := getRankingCache(cacheKey); ok {
+		return cached.([]UserIPCountRanking), nil
 	}
 
 	// 获取管理员用户ID列表，用于排除（兼容分库部署）
@@ -383,7 +518,43 @@ func GetUserIPCountRanking(startTimestamp, endTimestamp int64, limit int, showFu
 		return nil, err
 	}
 
-	// 获取每个用户的IP列表
+	if len(countResults) == 0 {
+		return []UserIPCountRanking{}, nil
+	}
+
+	// 收集所有用户ID，用于批量查询
+	userIDs := make([]int, len(countResults))
+	for i, cr := range countResults {
+		userIDs[i] = cr.UserId
+	}
+
+	// 批量获取所有用户的IP列表（一次查询代替 N 次查询）
+	type UserIPResult struct {
+		UserId int    `gorm:"column:user_id"`
+		IP     string `gorm:"column:ip"`
+	}
+	var userIPResults []UserIPResult
+
+	ipTx := LOG_DB.Table("logs").
+		Select("DISTINCT user_id, ip").
+		Where("user_id IN ? AND type = ? AND ip != ''", userIDs, LogTypeConsume)
+	if startTimestamp > 0 {
+		ipTx = ipTx.Where("created_at >= ?", startTimestamp)
+	}
+	if endTimestamp > 0 {
+		ipTx = ipTx.Where("created_at <= ?", endTimestamp)
+	}
+	ipTx.Find(&userIPResults)
+
+	// 在内存中按用户ID分组（每用户最多10个IP）
+	userIPMap := make(map[int][]string)
+	for _, uip := range userIPResults {
+		if len(userIPMap[uip.UserId]) < 10 { // 最多10个IP
+			userIPMap[uip.UserId] = append(userIPMap[uip.UserId], uip.IP)
+		}
+	}
+
+	// 构建结果
 	results := make([]UserIPCountRanking, len(countResults))
 	for i, cr := range countResults {
 		results[i] = UserIPCountRanking{
@@ -397,22 +568,13 @@ func GetUserIPCountRanking(startTimestamp, endTimestamp int64, limit int, showFu
 			results[i].UserId = intPtr(cr.UserId)
 		}
 
-		// 获取用户的IP列表（最多显示10个）
-		var ipList []string
-		ipTx := LOG_DB.Table("logs").
-			Select("DISTINCT ip").
-			Where("user_id = ? AND type = ? AND ip != ''", cr.UserId, LogTypeConsume)
-		if startTimestamp > 0 {
-			ipTx = ipTx.Where("created_at >= ?", startTimestamp)
-		}
-		if endTimestamp > 0 {
-			ipTx = ipTx.Where("created_at <= ?", endTimestamp)
-		}
-		ipTx.Limit(10).Pluck("ip", &ipList)
-
-		// 根据权限处理IP
+		// 从 map 中获取 IP 列表
+		ipList := userIPMap[cr.UserId]
 		results[i].IpList = processIPList(ipList, showFullIP)
 	}
+
+	// 设置缓存
+	setRankingCache(cacheKey, results)
 
 	return results, nil
 }
@@ -422,6 +584,13 @@ func GetUserIPCountRanking(startTimestamp, endTimestamp int64, limit int, showFu
 func GetRecentIPRanking(limit int, showFullIP bool, showUserId bool) ([]RecentIPRanking, error) {
 	if limit <= 0 || limit > 100 {
 		limit = 50
+	}
+
+	// 检查缓存（实时监控，缓存时间较短）
+	isAdmin := showFullIP && showUserId
+	cacheKey := buildRankingCacheKey("recent_ip", 0, 0, isAdmin)
+	if cached, ok := getRankingCache(cacheKey); ok {
+		return cached.([]RecentIPRanking), nil
 	}
 
 	// 获取管理员用户ID列表，用于排除（兼容分库部署）
@@ -457,7 +626,35 @@ func GetRecentIPRanking(limit int, showFullIP bool, showUserId bool) ([]RecentIP
 		return nil, err
 	}
 
-	// 获取每个用户的IP列表
+	if len(recentResults) == 0 {
+		return []RecentIPRanking{}, nil
+	}
+
+	// 收集所有用户ID，用于批量查询
+	userIDs := make([]int, len(recentResults))
+	for i, rr := range recentResults {
+		userIDs[i] = rr.UserId
+	}
+
+	// 批量获取所有用户的IP列表（一次查询代替 N 次查询）
+	type UserIPResult struct {
+		UserId int    `gorm:"column:user_id"`
+		IP     string `gorm:"column:ip"`
+	}
+	var userIPResults []UserIPResult
+
+	LOG_DB.Table("logs").
+		Select("DISTINCT user_id, ip").
+		Where("user_id IN ? AND type = ? AND ip != '' AND created_at >= ?", userIDs, LogTypeConsume, oneMinuteAgo).
+		Find(&userIPResults)
+
+	// 在内存中按用户ID分组
+	userIPMap := make(map[int][]string)
+	for _, uip := range userIPResults {
+		userIPMap[uip.UserId] = append(userIPMap[uip.UserId], uip.IP)
+	}
+
+	// 构建结果
 	results := make([]RecentIPRanking, len(recentResults))
 	for i, rr := range recentResults {
 		results[i] = RecentIPRanking{
@@ -470,16 +667,13 @@ func GetRecentIPRanking(limit int, showFullIP bool, showUserId bool) ([]RecentIP
 			results[i].UserId = intPtr(rr.UserId)
 		}
 
-		// 获取用户最近1分钟的IP列表
-		var ipList []string
-		LOG_DB.Table("logs").
-			Select("DISTINCT ip").
-			Where("user_id = ? AND type = ? AND ip != '' AND created_at >= ?", rr.UserId, LogTypeConsume, oneMinuteAgo).
-			Pluck("ip", &ipList)
-
-		// 根据权限处理IP
+		// 从 map 中获取 IP 列表
+		ipList := userIPMap[rr.UserId]
 		results[i].IpList = processIPList(ipList, showFullIP)
 	}
+
+	// 设置缓存
+	setRankingCache(cacheKey, results)
 
 	return results, nil
 }
@@ -498,6 +692,12 @@ type QuotaBalanceRanking struct {
 func GetQuotaBalanceRanking(limit int, showUserId bool) ([]QuotaBalanceRanking, error) {
 	if limit <= 0 || limit > 200 {
 		limit = 50
+	}
+
+	// 检查缓存
+	cacheKey := buildRankingCacheKey("quota_balance", 0, 0, showUserId)
+	if cached, ok := getRankingCache(cacheKey); ok {
+		return cached.([]QuotaBalanceRanking), nil
 	}
 
 	type RawResult struct {
@@ -531,6 +731,9 @@ func GetQuotaBalanceRanking(limit int, showUserId bool) ([]QuotaBalanceRanking, 
 			results[i].UserId = intPtr(raw.UserId)
 		}
 	}
+
+	// 设置缓存
+	setRankingCache(cacheKey, results)
 
 	return results, nil
 }

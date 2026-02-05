@@ -229,40 +229,54 @@ func LinuxdoOAuth(c *gin.Context) {
 			return
 		}
 	} else {
-		if common.RegisterEnabled {
-			if linuxdoUser.TrustLevel >= common.LinuxDOMinimumTrustLevel {
-				user.Username = "linuxdo_" + strconv.Itoa(model.GetMaxUserId()+1)
-				user.DisplayName = linuxdoUser.Name
-				user.Role = common.RoleCommonUser
-				user.Status = common.UserStatusEnabled
-
-				affCode := session.Get("aff")
-				inviterId := 0
-				if affCode != nil {
-					inviterId, _ = model.GetUserIdByAffCode(affCode.(string))
-				}
-
-				if err := user.Insert(inviterId); err != nil {
-					c.JSON(http.StatusOK, gin.H{
-						"success": false,
-						"message": err.Error(),
-					})
-					return
-				}
-			} else {
-				c.JSON(http.StatusOK, gin.H{
-					"success": false,
-					"message": "Linux DO 信任等级未达到管理员设置的最低信任等级",
-				})
-				return
-			}
-		} else {
+		// 新用户注册
+		if !common.RegisterEnabled {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
 				"message": "管理员关闭了新用户注册",
 			})
 			return
 		}
+		
+		// 先检查信任等级
+		if linuxdoUser.TrustLevel < common.LinuxDOMinimumTrustLevel {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "Linux DO 信任等级未达到管理员设置的最低信任等级",
+			})
+			return
+		}
+		
+		// 使用通用 OAuth 注册处理
+		displayName := linuxdoUser.Name
+		if displayName == "" {
+			displayName = "LinuxDO User"
+		}
+		
+		result, err := HandleOAuthNewUser(c, OAuthUserInfo{
+			OAuthType:   "linuxdo",
+			OAuthId:     strconv.Itoa(linuxdoUser.Id),
+			DisplayName: displayName,
+		})
+		
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return
+		}
+		
+		if result.NeedInvitationCode {
+			c.JSON(http.StatusOK, gin.H{
+				"success": true,
+				"message": "require_invitation_code",
+				"data":    result.RequireInvitationData,
+			})
+			return
+		}
+		
+		user = *result.User
 	}
 
 	if user.Status != common.UserStatusEnabled {

@@ -9,27 +9,36 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// GetInvitationCodeStats 获取邀请码全局统计
+// GetInvitationCodeStats 获取注解码全局统计
 func GetInvitationCodeStats(c *gin.Context) {
-	var totalRegister, activeRegister, totalUnban, activeUnban int64
 	now := time.Now().Unix()
 
-	// 注册码总数
-	model.DB.Model(&model.InvitationCode{}).Where("type = ?", 1).Count(&totalRegister)
-	// 有效注册码（状态=1且未过期且未用完）
+	// 使用 1 次查询代替 4 次查询，通过 GROUP BY 和条件统计实现
+	type StatResult struct {
+		Type        int   `gorm:"column:type"`
+		Total       int64 `gorm:"column:total"`
+		ActiveCount int64 `gorm:"column:active_count"`
+	}
+	var results []StatResult
+
+	// 一次查询获取所有统计数据
 	model.DB.Model(&model.InvitationCode{}).
-		Where("type = ? AND status = ?", 1, 1).
-		Where("(expired_at = 0 OR expired_at > ?)", now).
-		Where("(max_uses = -1 OR used_count < max_uses)").
-		Count(&activeRegister)
-	// 解封码总数
-	model.DB.Model(&model.InvitationCode{}).Where("type = ?", 2).Count(&totalUnban)
-	// 有效解封码
-	model.DB.Model(&model.InvitationCode{}).
-		Where("type = ? AND status = ?", 2, 1).
-		Where("(expired_at = 0 OR expired_at > ?)", now).
-		Where("(max_uses = -1 OR used_count < max_uses)").
-		Count(&activeUnban)
+		Select(`type, COUNT(*) as total, SUM(CASE WHEN status = 1 AND (expired_at = 0 OR expired_at > ?) AND (max_uses = -1 OR used_count < max_uses) THEN 1 ELSE 0 END) as active_count`, now).
+		Group("type").
+		Find(&results)
+
+	// 解析结果
+	var totalRegister, activeRegister, totalUnban, activeUnban int64
+	for _, r := range results {
+		switch r.Type {
+		case 1: // 注册码
+			totalRegister = r.Total
+			activeRegister = r.ActiveCount
+		case 2: // 解封码
+			totalUnban = r.Total
+			activeUnban = r.ActiveCount
+		}
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -53,7 +62,7 @@ func GenerateInvitationCodes(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
+		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "参数错误: " + err.Error(),
 		})
@@ -65,7 +74,7 @@ func GenerateInvitationCodes(c *gin.Context) {
 
 	codes, err := model.GenerateCodes(req.Type, req.Count, req.MaxUses, req.Note, req.ExpiredAt, userId)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
+		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": err.Error(),
 		})
@@ -95,7 +104,7 @@ func GetInvitationCodes(c *gin.Context) {
 
 	codes, total, err := model.GetInvitationCodes(codeType, status, page, pageSize)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
+		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "获取失败: " + err.Error(),
 		})
@@ -118,7 +127,7 @@ func GetInvitationCode(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
+		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "无效的ID",
 		})
@@ -127,7 +136,7 @@ func GetInvitationCode(c *gin.Context) {
 
 	code, err := model.GetInvitationCodeById(id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
+		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "邀请码不存在",
 		})
@@ -145,7 +154,7 @@ func UpdateInvitationCode(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
+		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "无效的ID",
 		})
@@ -160,7 +169,7 @@ func UpdateInvitationCode(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
+		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "参数错误",
 		})
@@ -182,7 +191,7 @@ func UpdateInvitationCode(c *gin.Context) {
 	}
 
 	if len(updates) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{
+		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "没有要更新的字段",
 		})
@@ -191,7 +200,7 @@ func UpdateInvitationCode(c *gin.Context) {
 
 	err = model.UpdateInvitationCode(id, updates)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
+		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "更新失败: " + err.Error(),
 		})
@@ -209,7 +218,7 @@ func DeleteInvitationCode(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
+		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "无效的ID",
 		})
@@ -218,7 +227,7 @@ func DeleteInvitationCode(c *gin.Context) {
 
 	err = model.DeleteInvitationCode(id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
+		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "删除失败: " + err.Error(),
 		})
@@ -246,7 +255,7 @@ func GetInvitationCodeUsageLogs(c *gin.Context) {
 
 	logs, total, err := model.GetInvitationCodeUsageLogs(codeId, page, pageSize)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
+		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "获取失败: " + err.Error(),
 		})
@@ -272,7 +281,7 @@ func ValidateInvitationCode(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
+		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "参数错误",
 		})
@@ -304,7 +313,7 @@ func BatchUpdateInvitationCodeStatus(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
+		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "参数错误",
 		})
@@ -312,7 +321,7 @@ func BatchUpdateInvitationCodeStatus(c *gin.Context) {
 	}
 
 	if len(req.Ids) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{
+		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "请选择要更新的邀请码",
 		})
@@ -321,7 +330,7 @@ func BatchUpdateInvitationCodeStatus(c *gin.Context) {
 
 	err := model.DB.Model(&model.InvitationCode{}).Where("id IN ?", req.Ids).Update("status", req.Status).Error
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
+		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "更新失败: " + err.Error(),
 		})
@@ -341,7 +350,7 @@ func BatchDeleteInvitationCodes(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
+		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "参数错误",
 		})
@@ -349,7 +358,7 @@ func BatchDeleteInvitationCodes(c *gin.Context) {
 	}
 
 	if len(req.Ids) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{
+		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "请选择要删除的邀请码",
 		})
@@ -358,7 +367,7 @@ func BatchDeleteInvitationCodes(c *gin.Context) {
 
 	err := model.DB.Where("id IN ?", req.Ids).Delete(&model.InvitationCode{}).Error
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
+		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "删除失败: " + err.Error(),
 		})
@@ -379,7 +388,7 @@ func ExportInvitationCodes(c *gin.Context) {
 	now := time.Now().Unix()
 
 	if codeType != 1 && codeType != 2 {
-		c.JSON(http.StatusBadRequest, gin.H{
+		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "类型必须是 1(注册码) 或 2(解封码)",
 		})
@@ -400,7 +409,7 @@ func ExportInvitationCodes(c *gin.Context) {
 
 	err := query.Select("code").Find(&codes).Error
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
+		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "导出失败",
 		})
@@ -425,7 +434,7 @@ func DeleteAllInvitationCodesByType(c *gin.Context) {
 	codeTypeStr := c.Query("type")
 	codeType, err := strconv.Atoi(codeTypeStr)
 	if err != nil || (codeType != 1 && codeType != 2) {
-		c.JSON(http.StatusBadRequest, gin.H{
+		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "无效的类型参数，必须是 1(注册码) 或 2(解封码)",
 		})
@@ -434,7 +443,7 @@ func DeleteAllInvitationCodesByType(c *gin.Context) {
 
 	result := model.DB.Where("type = ?", codeType).Delete(&model.InvitationCode{})
 	if result.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
+		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "删除失败: " + result.Error.Error(),
 		})

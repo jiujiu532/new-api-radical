@@ -217,21 +217,21 @@ func Register(c *gin.Context) {
 		return
 	}
 	
-	// 邀请码验证
+	// 注册码验证
 	if common.InvitationCodeEnabled {
 		if user.InvitationCode == "" {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
-				"message": "请输入邀请码",
+				"message": "请输入注册码",
 			})
 			return
 		}
-		// 验证邀请码（先只检查有效性，注册成功后再消耗使用次数）
+		// 验证注册码（先只检查有效性，注册成功后再消耗使用次数）
 		valid, errMsg := model.CheckCodeExists(user.InvitationCode, model.InvitationCodeTypeRegister)
 		if !valid {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
-				"message": "邀请码无效：" + errMsg,
+				"message": "注册码无效：" + errMsg,
 			})
 			return
 		}

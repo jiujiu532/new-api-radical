@@ -16,11 +16,13 @@ const (
 	RMB     = USD / USD2RMB
 )
 
-// modelRatio
-// https://platform.openai.com/docs/models/model-endpoint-compatibility
-// https://cloud.baidu.com/doc/WENXINWORKSHOP/s/Blfmc9dlf
-// https://openai.com/pricing
-// TODO: when a new api is enabled, check the pricing here
+// modelRatio 模型倍率配置
+// 参考文档：
+// - https://platform.openai.com/docs/models/model-endpoint-compatibility
+// - https://cloud.baidu.com/doc/WENXINWORKSHOP/s/Blfmc9dlf
+// - https://openai.com/pricing
+//
+// 开发者注意：添加新模型时，请根据官方定价文档设置正确的倍率
 // 1 === $0.002 / 1K tokens
 // 1 === ￥0.014 / 1k tokens
 

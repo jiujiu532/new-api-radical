@@ -67,7 +67,7 @@ const CODE_TYPES = {
     2: { text: '解封码', color: 'blue' },
 };
 
-// 邀请码状态
+// 注册码状态
 const CODE_STATUS = {
     1: { text: '有效', color: 'green', icon: <IconTickCircle /> },
     2: { text: '已用完', color: 'grey', icon: <IconClose /> },
@@ -115,7 +115,7 @@ const InvitationCode = () => {
         count: -1, // -1 表示全部
     });
 
-    // 加载邀请码列表
+    // 加载注册码列表
     const fetchCodes = useCallback(async () => {
         setLoading(true);
         try {
@@ -134,7 +134,7 @@ const InvitationCode = () => {
                 showError(res.data.message);
             }
         } catch (err) {
-            showError('获取邀请码列表失败');
+            showError('获取注册码列表失败');
         }
         setLoading(false);
     }, [filterType, filterStatus, page, pageSize]);
@@ -161,7 +161,7 @@ const InvitationCode = () => {
         fetchStats();
     }, [fetchCodes, fetchStats]);
 
-    // 批量生成邀请码
+    // 批量生成注册码
     const handleGenerate = async () => {
         try {
             const payload = {
@@ -170,7 +170,7 @@ const InvitationCode = () => {
             };
             const res = await API.post('/api/invitation_code/generate', payload);
             if (res.data.success) {
-                showSuccess(`成功生成 ${res.data.data.length} 个邀请码`);
+                showSuccess(`成功生成 ${res.data.data.length} 个注册码`);
                 setGenerateVisible(false);
                 setGenerateForm({
                     type: 1,
@@ -185,11 +185,11 @@ const InvitationCode = () => {
                 showError(res.data.message);
             }
         } catch (err) {
-            showError('生成邀请码失败');
+            showError('生成注册码失败');
         }
     };
 
-    // 更新邀请码状态
+    // 更新注册码状态
     const handleUpdateStatus = async (id, status) => {
         try {
             const res = await API.put(`/api/invitation_code/${id}`, { status });
@@ -204,7 +204,7 @@ const InvitationCode = () => {
         }
     };
 
-    // 删除邀请码
+    // 删除注册码
     const handleDelete = async (id) => {
         try {
             const res = await API.delete(`/api/invitation_code/${id}`);
@@ -222,7 +222,7 @@ const InvitationCode = () => {
     // 批量删除
     const handleBatchDelete = async () => {
         if (selectedRowKeys.length === 0) {
-            showError('请先选择要删除的邀请码');
+            showError('请先选择要删除的注册码');
             return;
         }
         try {
@@ -276,7 +276,7 @@ const InvitationCode = () => {
         setUsageLogsLoading(false);
     };
 
-    // 导出邀请码
+    // 导出注册码
     const handleExport = async () => {
         try {
             const res = await API.get('/api/invitation_code/export', {
@@ -299,16 +299,16 @@ const InvitationCode = () => {
         }
     };
 
-    // 复制单个邀请码
+    // 复制单个注册码
     const handleCopyCode = (code) => {
         copy(code);
-        showSuccess('已复制邀请码');
+        showSuccess('已复制注册码');
     };
 
     // 表格列定义
     const columns = [
         {
-            title: '邀请码',
+            title: '注册码',
             dataIndex: 'code',
             width: 180,
             render: (text, record) => (
@@ -392,7 +392,7 @@ const InvitationCode = () => {
             fixed: 'right',
             render: (_, record) => (
                 <Space>
-                    <Tooltip content="复制邀请码">
+                    <Tooltip content="复制注册码">
                         <Button
                             icon={<IconCopy />}
                             size="small"
@@ -426,7 +426,7 @@ const InvitationCode = () => {
                         </Tooltip>
                     ) : null}
                     <Popconfirm
-                        title="确定删除此邀请码？"
+                        title="确定删除此注册码？"
                         onConfirm={() => handleDelete(record.id)}
                     >
                         <Tooltip content="删除">
@@ -532,7 +532,7 @@ const InvitationCode = () => {
                     </Button>
                     {selectedRowKeys.length > 0 && (
                         <Popconfirm
-                            title={`确定删除选中的 ${selectedRowKeys.length} 个邀请码？`}
+                            title={`确定删除选中的 ${selectedRowKeys.length} 个注册码？`}
                             onConfirm={handleBatchDelete}
                         >
                             <Button icon={<IconDelete />} type="danger">
@@ -576,7 +576,7 @@ const InvitationCode = () => {
                 </Space>
             </Card>
 
-            {/* 邀请码表格 */}
+            {/* 注册码表格 */}
             <Card bodyStyle={{ padding: '12px', height: '100%', display: 'flex', flexDirection: 'column' }} style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
                 <Table
                     columns={columns}
@@ -606,7 +606,7 @@ const InvitationCode = () => {
 
             {/* 批量生成弹窗 */}
             <Modal
-                title="批量生成邀请码"
+                title="批量生成注册码"
                 visible={generateVisible}
                 onOk={handleGenerate}
                 onCancel={() => setGenerateVisible(false)}
@@ -659,7 +659,7 @@ const InvitationCode = () => {
 
             {/* 导出弹窗 */}
             <Modal
-                title="导出有效邀请码"
+                title="导出有效注册码"
                 visible={exportVisible}
                 onOk={handleExport}
                 onCancel={() => setExportVisible(false)}
@@ -686,7 +686,7 @@ const InvitationCode = () => {
                     />
                 </Form>
                 <Text type="tertiary" style={{ marginTop: 8, display: 'block' }}>
-                    注：仅导出状态为有效、未过期、未用完的邀请码
+                    注：仅导出状态为有效、未过期、未用完的注册码
                 </Text>
             </Modal>
 

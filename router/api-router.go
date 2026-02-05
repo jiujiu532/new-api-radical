@@ -46,6 +46,7 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/oauth/oidc", middleware.CriticalRateLimit(), controller.OidcAuth)
 		apiRouter.GET("/oauth/linuxdo", middleware.CriticalRateLimit(), controller.LinuxdoOAuth)
 		apiRouter.GET("/oauth/state", middleware.CriticalRateLimit(), controller.GenerateOAuthCode)
+		apiRouter.POST("/oauth/register_with_code", middleware.CriticalRateLimit(), controller.CompleteOAuthRegistrationWithCode)
 		apiRouter.GET("/oauth/wechat", middleware.CriticalRateLimit(), controller.WeChatAuth)
 		apiRouter.GET("/oauth/wechat/bind", middleware.CriticalRateLimit(), controller.WeChatBind)
 		apiRouter.GET("/oauth/email/bind", middleware.CriticalRateLimit(), controller.EmailBind)
@@ -337,7 +338,7 @@ func SetApiRouter(router *gin.Engine) {
 			rankingRoute.GET("/quota_balance", controller.GetQuotaBalanceRanking)
 		}
 
-		// Invitation Code routes - 邀请码/注册码/解封码管理 (管理员权限)
+		// Invitation Code routes - 注册码/解封码管理 (管理员权限)
 		invitationCodeRoute := apiRouter.Group("/invitation_code")
 		invitationCodeRoute.Use(middleware.AdminAuth())
 		{
@@ -354,7 +355,7 @@ func SetApiRouter(router *gin.Engine) {
 			invitationCodeRoute.DELETE("/delete_all_by_type", controller.DeleteAllInvitationCodesByType) // 按类型删除所有
 		}
 
-		// 公开的邀请码验证接口（用于注册页面预检）
+		// 公开的注册码验证接口（用于注册页面预检）
 		apiRouter.POST("/invitation_code/validate", controller.ValidateInvitationCode)
 
 		// Deployments (model deployment management)

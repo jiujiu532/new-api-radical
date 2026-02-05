@@ -17,15 +17,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useContext, useEffect } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { Button, Card, Form, Modal } from '@douyinfe/semi-ui';
+import { IconKey } from '@douyinfe/semi-icons';
+import Title from '@douyinfe/semi-ui/lib/es/typography/title';
+import Text from '@douyinfe/semi-ui/lib/es/typography/text';
 import {
   API,
   showError,
   showSuccess,
   updateAPI,
   setUserData,
+  getLogo,
+  getSystemName,
 } from '../../helpers';
 import { UserContext } from '../../context/User';
 import Loading from '../common/ui/Loading';
@@ -35,6 +41,16 @@ const OAuth2Callback = (props) => {
   const [searchParams] = useSearchParams();
   const [, userDispatch] = useContext(UserContext);
   const navigate = useNavigate();
+
+  // 注册码输入状态
+  const [showInvitationCodeModal, setShowInvitationCodeModal] = useState(false);
+  const [invitationCode, setInvitationCode] = useState('');
+  const [oauthDisplayName, setOauthDisplayName] = useState('');
+  const [oauthType, setOauthType] = useState('');
+  const [submitLoading, setSubmitLoading] = useState(false);
+
+  const logo = getLogo();
+  const systemName = getSystemName();
 
   // 最大重试次数
   const MAX_RETRIES = 3;
@@ -75,6 +91,39 @@ const OAuth2Callback = (props) => {
     }
   };
 
+  // 提交注册码完成注册
+  const handleSubmitInvitationCode = async () => {
+    if (!invitationCode) {
+      showError(t('请输入注册码'));
+      return;
+    }
+
+    setSubmitLoading(true);
+    try {
+      const res = await API.post('/api/oauth/register_with_code', {
+        invitation_code: invitationCode,
+      });
+
+      const { success, message, data } = res.data;
+
+      if (success) {
+        userDispatch({ type: 'login', payload: data });
+        localStorage.setItem('user', JSON.stringify(data));
+        setUserData(data);
+        updateAPI();
+        showSuccess(t('注册成功！'));
+        setShowInvitationCodeModal(false);
+        navigate('/console/token');
+      } else {
+        showError(message || t('注册失败'));
+      }
+    } catch (error) {
+      showError(error?.response?.data?.message || error?.message || t('注册失败'));
+    } finally {
+      setSubmitLoading(false);
+    }
+  };
+
   // 处理正常登录流程
   const sendCode = async (code, state, retry = 0) => {
     try {
@@ -86,6 +135,14 @@ const OAuth2Callback = (props) => {
 
       if (!success) {
         throw new Error(message || 'OAuth2 callback error');
+      }
+
+      // 检查是否需要输入注册码
+      if (message === 'require_invitation_code' && data?.require_invitation_code) {
+        setOauthType(data.oauth_type || props.type);
+        setOauthDisplayName(data.display_name || '');
+        setShowInvitationCodeModal(true);
+        return;
       }
 
       if (message === 'bind') {
@@ -108,6 +165,13 @@ const OAuth2Callback = (props) => {
           hasBannedRedirected.current = true;
           navigate('/login?banned=true', { replace: true });
         }
+        return;
+      }
+
+      // 检测是否是信任等级错误（不需要重试）
+      if (errorMessage.includes('信任等级')) {
+        showError(errorMessage);
+        navigate('/register');
         return;
       }
 
@@ -146,6 +210,81 @@ const OAuth2Callback = (props) => {
       sendCode(code, state);
     }
   }, []);
+
+  // 注册码输入弹窗
+  const renderInvitationCodeModal = () => {
+    return (
+      <Modal
+        title={null}
+        visible={showInvitationCodeModal}
+        footer={null}
+        closable={false}
+        centered={true}
+        width={400}
+      >
+        <div className='flex flex-col items-center p-4'>
+          <div className='flex items-center justify-center mb-4 gap-2'>
+            <img src={logo} alt='Logo' className='h-8 rounded-full' />
+            <Title heading={4} className='!text-gray-800'>
+              {systemName}
+            </Title>
+          </div>
+
+          <Title heading={5} className='mb-2'>
+            {t('请输入注册码')}
+          </Title>
+
+          {oauthDisplayName && (
+            <Text className='text-gray-500 mb-4'>
+              {t('欢迎')}，{oauthDisplayName}
+            </Text>
+          )}
+
+          <Form className='w-full'>
+            <Form.Input
+              field='invitation_code'
+              label={t('注册码')}
+              placeholder={t('请输入注册码')}
+              prefix={<IconKey />}
+              value={invitationCode}
+              onChange={(value) => setInvitationCode(value)}
+              rules={[{ required: true, message: t('请输入注册码') }]}
+            />
+
+            <div className='flex gap-2 mt-4'>
+              <Button
+                theme='light'
+                className='flex-1'
+                onClick={() => {
+                  setShowInvitationCodeModal(false);
+                  navigate('/register');
+                }}
+              >
+                {t('取消')}
+              </Button>
+              <Button
+                theme='solid'
+                type='primary'
+                className='flex-1'
+                loading={submitLoading}
+                onClick={handleSubmitInvitationCode}
+              >
+                {t('注册')}
+              </Button>
+            </div>
+          </Form>
+        </div>
+      </Modal>
+    );
+  };
+
+  if (showInvitationCodeModal) {
+    return (
+      <div className='min-h-screen flex items-center justify-center bg-gray-100'>
+        {renderInvitationCodeModal()}
+      </div>
+    );
+  }
 
   return <Loading />;
 };

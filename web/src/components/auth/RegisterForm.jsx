@@ -101,7 +101,7 @@ const RegisterForm = () => {
     localStorage.setItem('aff', affCode);
   }
 
-  const [status] = useState(() => {
+  const [status, setStatus] = useState(() => {
     const savedStatus = localStorage.getItem('status');
     return savedStatus ? JSON.parse(savedStatus) : {};
   });
@@ -109,6 +109,23 @@ const RegisterForm = () => {
   const [showEmailVerification, setShowEmailVerification] = useState(() => {
     return status.email_verification ?? false;
   });
+
+  // 获取最新的 status
+  useEffect(() => {
+    const fetchStatus = async () => {
+      try {
+        const res = await API.get('/api/status');
+        if (res.data.success) {
+          const newStatus = res.data.data;
+          localStorage.setItem('status', JSON.stringify(newStatus));
+          setStatus(newStatus);
+        }
+      } catch (error) {
+        console.error('获取状态失败:', error);
+      }
+    };
+    fetchStatus();
+  }, []);
 
   useEffect(() => {
     setShowEmailVerification(status.email_verification);

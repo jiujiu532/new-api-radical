@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -10,6 +11,34 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 )
+
+// findBannedUser 查找被封禁用户（通过用户名）
+// 返回用户对象或错误信息
+func findBannedUser(username string) (*model.User, error) {
+	var user model.User
+	err := model.DB.Where("username = ?", username).First(&user).Error
+	if err != nil {
+		return nil, errors.New("用户不存在")
+	}
+	if user.Status != common.UserStatusDisabled {
+		return nil, errors.New("该用户未被封禁")
+	}
+	return &user, nil
+}
+
+// findBannedUserByEmail 查找被封禁用户（通过邮箱）
+// 返回用户对象或错误信息
+func findBannedUserByEmail(email string) (*model.User, error) {
+	var user model.User
+	err := model.DB.Where("email = ?", email).First(&user).Error
+	if err != nil {
+		return nil, errors.New("未找到绑定此邮箱的用户")
+	}
+	if user.Status != common.UserStatusDisabled {
+		return nil, errors.New("该用户未被封禁")
+	}
+	return &user, nil
+}
 
 // 脱敏用户名：前2后1，中间***
 func maskUsername(username string) string {
@@ -152,29 +181,19 @@ func GetBlacklist(c *gin.Context) {
 func GetUnbanVerifyMethod(c *gin.Context) {
 	username := c.Query("username")
 	if username == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
+		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "请输入用户名",
 		})
 		return
 	}
 
-	// 查找用户
-	var user model.User
-	err := model.DB.Where("username = ?", username).First(&user).Error
+	// 查找被封禁用户
+	user, err := findBannedUser(username)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": "用户不存在",
-		})
-		return
-	}
-
-	// 检查用户是否被禁用
-	if user.Status != common.UserStatusDisabled {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "该用户未被封禁",
+			"message": err.Error(),
 		})
 		return
 	}
@@ -182,7 +201,7 @@ func GetUnbanVerifyMethod(c *gin.Context) {
 	// 判断验证方式
 	// 优先级：有邮箱 -> 邮箱验证；无邮箱但有第三方 -> 第三方登录验证
 	var verifyMethod string
-	authMethods := getAuthMethods(user) // 总是获取所有认证方式
+	authMethods := getAuthMethods(*user) // 总是获取所有认证方式
 
 	if user.Email != "" {
 		// 有邮箱的用户，使用邮箱验证
@@ -213,29 +232,19 @@ func SendUnbanVerifyCode(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
+		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "请输入用户名",
 		})
 		return
 	}
 
-	// 查找用户
-	var user model.User
-	err := model.DB.Where("username = ?", req.Username).First(&user).Error
+	// 查找被封禁用户
+	user, err := findBannedUser(req.Username)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": "用户不存在",
-		})
-		return
-	}
-
-	// 检查用户是否被禁用
-	if user.Status != common.UserStatusDisabled {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "该用户未被封禁",
+			"message": err.Error(),
 		})
 		return
 	}
@@ -284,29 +293,19 @@ func SendUnbanEmailCode(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
+		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "请输入邮箱",
 		})
 		return
 	}
 
-	// 通过邮箱查找用户
-	var user model.User
-	err := model.DB.Where("email = ?", req.Email).First(&user).Error
+	// 通过邮箱查找被封禁用户
+	user, err := findBannedUserByEmail(req.Email)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": "未找到绑定此邮箱的用户",
-		})
-		return
-	}
-
-	// 检查用户是否被禁用
-	if user.Status != common.UserStatusDisabled {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "该用户未被封禁",
+			"message": err.Error(),
 		})
 		return
 	}
@@ -347,29 +346,19 @@ func VerifyEmailForUnban(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
+		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "请输入邮箱和验证码",
 		})
 		return
 	}
 
-	// 通过邮箱查找用户
-	var user model.User
-	err := model.DB.Where("email = ?", req.Email).First(&user).Error
+	// 通过邮箱查找被封禁用户
+	user, err := findBannedUserByEmail(req.Email)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": "未找到绑定此邮箱的用户",
-		})
-		return
-	}
-
-	// 检查用户是否被禁用
-	if user.Status != common.UserStatusDisabled {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "该用户未被封禁",
+			"message": err.Error(),
 		})
 		return
 	}
@@ -400,29 +389,19 @@ func VerifyUsernameForUnban(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
+		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "请输入用户名",
 		})
 		return
 	}
 
-	// 查找用户
-	var user model.User
-	err := model.DB.Where("username = ?", req.Username).First(&user).Error
+	// 查找被封禁用户
+	user, err := findBannedUser(req.Username)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": "用户不存在",
-		})
-		return
-	}
-
-	// 检查用户是否被禁用
-	if user.Status != common.UserStatusDisabled {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "该用户未被封禁",
+			"message": err.Error(),
 		})
 		return
 	}
@@ -487,29 +466,19 @@ func UnbanWithCode(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
+		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "请填写完整信息",
 		})
 		return
 	}
 
-	// 查找用户
-	var user model.User
-	err := model.DB.Where("username = ?", req.Username).First(&user).Error
+	// 查找被封禁用户
+	user, err := findBannedUser(req.Username)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": "用户不存在",
-		})
-		return
-	}
-
-	// 检查用户是否被禁用
-	if user.Status != common.UserStatusDisabled {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "该用户未被封禁",
+			"message": err.Error(),
 		})
 		return
 	}
@@ -609,29 +578,19 @@ func OAuthUnbanVerify(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
+		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "参数错误",
 		})
 		return
 	}
 
-	// 查找用户
-	var user model.User
-	err := model.DB.Where("username = ?", req.Username).First(&user).Error
+	// 查找被封禁用户
+	user, err := findBannedUser(req.Username)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": "用户不存在",
-		})
-		return
-	}
-
-	// 检查用户是否被禁用
-	if user.Status != common.UserStatusDisabled {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "该用户未被封禁",
+			"message": err.Error(),
 		})
 		return
 	}
@@ -757,7 +716,7 @@ func OAuthUnbanVerifyByCode(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
+		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "参数错误",
 		})

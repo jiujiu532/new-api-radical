@@ -17,7 +17,9 @@ func CheckSensitiveMessages(messages []dto.Message) ([]string, error) {
 		arrayContent := message.ParseContent()
 		for _, m := range arrayContent {
 			if m.Type == "image_url" {
-				// TODO: check image url
+				// 图片内容暂不支持敏感词检测
+				// 原因：需要 OCR 服务识别图片中的文字，实现成本较高
+				// 如需支持，可接入第三方 OCR API 或图片审核服务
 				continue
 			}
 			// 检查 text 是否为空

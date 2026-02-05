@@ -143,6 +143,14 @@ func OidcAuth(c *gin.Context) {
 		}
 	} else {
 		if common.RegisterEnabled {
+			// 邀请码验证
+			if common.InvitationCodeEnabled {
+				c.JSON(http.StatusOK, gin.H{
+					"success": false,
+					"message": "管理员开启了邀请码注册，请使用邀请码通过用户名密码方式注册",
+				})
+				return
+			}
 			user.Email = oidcUser.Email
 			if oidcUser.PreferredUsername != "" {
 				user.Username = oidcUser.PreferredUsername

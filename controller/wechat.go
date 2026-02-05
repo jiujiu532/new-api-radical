@@ -90,6 +90,14 @@ func WeChatAuth(c *gin.Context) {
 		}
 	} else {
 		if common.RegisterEnabled {
+			// 邀请码验证
+			if common.InvitationCodeEnabled {
+				c.JSON(http.StatusOK, gin.H{
+					"success": false,
+					"message": "管理员开启了邀请码注册，请使用邀请码通过用户名密码方式注册",
+				})
+				return
+			}
 			user.Username = "wechat_" + strconv.Itoa(model.GetMaxUserId()+1)
 			user.DisplayName = "WeChat User"
 			user.Role = common.RoleCommonUser

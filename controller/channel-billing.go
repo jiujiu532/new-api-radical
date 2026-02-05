@@ -463,10 +463,9 @@ func updateAllChannelsBalance() error {
 		if channel.ChannelInfo.IsMultiKey {
 			continue // skip multi-key channels
 		}
-		// TODO: support Azure
-		//if channel.Type != common.ChannelTypeOpenAI && channel.Type != common.ChannelTypeCustom {
-		//	continue
-		//}
+		// Azure 渠道暂不支持自动余额查询
+		// 原因：Azure OpenAI 使用 Azure 订阅计费，需要 Azure Cost Management API
+		// 且计费方式与 OpenAI 不同，难以统一处理
 		balance, err := updateChannelBalance(channel)
 		if err != nil {
 			continue
@@ -482,15 +481,17 @@ func updateAllChannelsBalance() error {
 }
 
 func UpdateAllChannelsBalance(c *gin.Context) {
-	// TODO: make it async
-	err := updateAllChannelsBalance()
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
+	// 异步执行余额更新，立即返回响应
+	go func() {
+		err := updateAllChannelsBalance()
+		if err != nil {
+			common.SysLog("更新所有渠道余额失败: " + err.Error())
+		}
+	}()
+	
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "",
+		"message": "已开始更新所有渠道余额，请稍后刷新查看结果",
 	})
 	return
 }
