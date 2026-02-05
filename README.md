@@ -107,6 +107,7 @@ docker-compose up -d
 | 平台 | 文件 |
 |------|------|
 | Linux (amd64) | `new-api-linux-amd64` |
+| Linux (arm64) | `new-api-linux-arm64` |
 | Windows (amd64) | `new-api-windows-amd64.exe` |
 
 ```bash

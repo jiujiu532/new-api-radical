@@ -107,6 +107,7 @@ Download from [Releases](https://github.com/jiujiu532/new-api-radical/releases):
 | Platform | File |
 |----------|------|
 | Linux (amd64) | `new-api-linux-amd64` |
+| Linux (arm64) | `new-api-linux-arm64` |
 | Windows (amd64) | `new-api-windows-amd64.exe` |
 
 ```bash
