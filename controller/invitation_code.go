@@ -298,9 +298,14 @@ func ValidateInvitationCode(c *gin.Context) {
 		return
 	}
 
+	codeName := "注册码"
+	if req.Type == 2 {
+		codeName = "解封码"
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "邀请码有效",
+		"message": codeName + "有效",
 		"valid":   true,
 	})
 }
@@ -441,7 +446,32 @@ func DeleteAllInvitationCodesByType(c *gin.Context) {
 		return
 	}
 
-	result := model.DB.Where("type = ?", codeType).Delete(&model.InvitationCode{})
+	// 获取状态筛选参数：0=全部, 1=有效, 2=已用完, 3=已禁用, 4=已过期
+	statusStr := c.Query("status")
+	status := 0 // 默认删除全部
+	if statusStr != "" {
+		status, _ = strconv.Atoi(statusStr)
+	}
+
+	now := time.Now().Unix()
+	query := model.DB.Where("type = ?", codeType)
+
+	statusName := ""
+	switch status {
+	case 1: // 有效：status=1 且未过期且未用完
+		query = query.Where("status = 1 AND (expired_at = 0 OR expired_at > ?) AND (max_uses = -1 OR used_count < max_uses)", now)
+		statusName = "有效"
+	case 2: // 已用完：used_count >= max_uses 且 max_uses != -1（包含已用完+已过期的码）
+		query = query.Where("max_uses != -1 AND used_count >= max_uses")
+		statusName = "已用完"
+	case 4: // 已过期：只删除纯过期的码，排除同时已用完的码
+		query = query.Where("expired_at > 0 AND expired_at < ? AND (max_uses = -1 OR used_count < max_uses)", now)
+		statusName = "已过期"
+	default:
+		statusName = "所有"
+	}
+
+	result := query.Delete(&model.InvitationCode{})
 	if result.Error != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -457,7 +487,7 @@ func DeleteAllInvitationCodesByType(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "成功删除所有" + typeName + "，共 " + strconv.FormatInt(result.RowsAffected, 10) + " 条",
+		"message": "成功删除" + statusName + typeName + "，共 " + strconv.FormatInt(result.RowsAffected, 10) + " 条",
 		"data": gin.H{
 			"deleted_count": result.RowsAffected,
 		},

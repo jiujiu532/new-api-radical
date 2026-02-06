@@ -76,6 +76,16 @@
 - **Admin Rate Limit Exemption**: Flexible RPM rate limiting
 - **LinuxDO OAuth Login**: Support LinuxDO community login
 
+### 🎫 Invitation Code System
+
+| Feature | Description |
+|---------|-------------|
+| 📝 Registration Code | Control user registration, batch generation |
+| 🔓 Unban Code | User self-service unban, one-time use |
+| 📊 Usage Logs | Complete usage tracking |
+| ⏱️ Expiration Management | Set validity period and usage limits |
+| 📤 Batch Export | One-click export valid codes to clipboard |
+
 ### 🗄️ Database Compatibility
 
 | Database | Status |

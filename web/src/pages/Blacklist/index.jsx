@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import {
     Card,
     Table,
@@ -47,7 +47,7 @@ import {
     IconLink,
     IconArrowLeft,
 } from '@douyinfe/semi-icons';
-import { API, showError, showSuccess, showInfo, getOAuthState } from '@/helpers';
+import { API, showError, showSuccess } from '@/helpers';
 import { useTranslation } from 'react-i18next';
 import LinuxDoIcon from '@/components/common/logo/LinuxDoIcon';
 
@@ -109,7 +109,6 @@ const VERIFY_METHODS = {
 
 const Blacklist = () => {
     const { t } = useTranslation();
-    const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
     const [bannedUsers, setBannedUsers] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -174,10 +173,10 @@ const Blacklist = () => {
                 showError(res.data.message);
             }
         } catch (err) {
-            showError('获取封禁名单失败');
+            showError(t('获取封禁名单失败'));
         }
         setLoading(false);
-    }, [page, pageSize]);
+    }, [page, pageSize, t]);
 
     useEffect(() => {
         fetchStatus();

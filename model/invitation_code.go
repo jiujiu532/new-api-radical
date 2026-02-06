@@ -109,37 +109,44 @@ func GenerateCodes(codeType int, count int, maxUses int, note string, expiredAt 
 // 返回: 注册码对象, 错误信息
 func ValidateAndUseCode(code string, codeType int, userId int, username string, ip string) (*InvitationCode, error) {
 	code = strings.TrimSpace(strings.ToUpper(code))
+	
+	// 根据类型确定显示名称
+	codeName := "注册码"
+	if codeType == 2 {
+		codeName = "解封码"
+	}
+	
 	if code == "" {
-		return nil, errors.New("注册码不能为空")
+		return nil, errors.New(codeName + "不能为空")
 	}
 
 	var invCode InvitationCode
 	err := DB.Where("code = ? AND type = ?", code, codeType).First(&invCode).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errors.New("注册码不存在或类型不匹配")
+			return nil, errors.New(codeName + "不存在或类型不匹配")
 		}
 		return nil, err
 	}
 
 	// 检查状态
 	if invCode.Status == InvitationCodeStatusDisabled {
-		return nil, errors.New("注册码已被禁用")
+		return nil, errors.New(codeName + "已被禁用")
 	}
 	if invCode.Status == InvitationCodeStatusExhausted {
-		return nil, errors.New("注册码已用完")
+		return nil, errors.New(codeName + "已用完")
 	}
 
 	// 检查过期
 	if invCode.ExpiredAt > 0 && invCode.ExpiredAt < time.Now().Unix() {
-		return nil, errors.New("注册码已过期")
+		return nil, errors.New(codeName + "已过期")
 	}
 
 	// 检查使用次数
 	if invCode.MaxUses != -1 && invCode.UsedCount >= invCode.MaxUses {
 		// 更新状态为已用完
 		DB.Model(&invCode).Update("status", InvitationCodeStatusExhausted)
-		return nil, errors.New("注册码已用完")
+		return nil, errors.New(codeName + "已用完")
 	}
 
 	// 使用注册码（事务）
@@ -187,14 +194,28 @@ func ValidateAndUseCode(code string, codeType int, userId int, username string, 
 func GetInvitationCodes(codeType int, status int, page int, pageSize int) ([]InvitationCode, int64, error) {
 	var codes []InvitationCode
 	var total int64
+	now := time.Now().Unix()
 
 	query := DB.Model(&InvitationCode{})
 	
 	if codeType > 0 {
 		query = query.Where("type = ?", codeType)
 	}
+	
+	// status: 1=有效, 2=已用完, 4=已过期
+	// 注意：已用完优先级高于已过期，所以筛选已过期时要排除已用完
 	if status > 0 {
-		query = query.Where("status = ?", status)
+		switch status {
+		case 1:
+			// 有效：status=1 且 (expired_at=0 或 expired_at > 当前时间) 且 (max_uses=-1 或 used_count < max_uses)
+			query = query.Where("status = 1 AND (expired_at = 0 OR expired_at > ?) AND (max_uses = -1 OR used_count < max_uses)", now)
+		case 2:
+			// 已用完：max_uses != -1 且 used_count >= max_uses（包含同时过期的）
+			query = query.Where("max_uses != -1 AND used_count >= max_uses")
+		case 4:
+			// 已过期：expired_at > 0 且 expired_at < 当前时间，但排除已用完的
+			query = query.Where("expired_at > 0 AND expired_at < ? AND (max_uses = -1 OR used_count < max_uses)", now)
+		}
 	}
 
 	err := query.Count(&total).Error
@@ -257,30 +278,37 @@ func GetInvitationCodeUsageLogs(codeId int, page int, pageSize int) ([]Invitatio
 // CheckCodeExists 检查注册码是否存在且有效（不消耗使用次数）
 func CheckCodeExists(code string, codeType int) (bool, string) {
 	code = strings.TrimSpace(strings.ToUpper(code))
+	
+	// 根据类型确定显示名称
+	codeName := "注册码"
+	if codeType == 2 {
+		codeName = "解封码"
+	}
+	
 	if code == "" {
-		return false, "注册码不能为空"
+		return false, codeName + "不能为空"
 	}
 
 	var invCode InvitationCode
 	err := DB.Where("code = ? AND type = ?", code, codeType).First(&invCode).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return false, "注册码不存在"
+			return false, codeName + "不存在"
 		}
 		return false, "查询失败"
 	}
 
 	if invCode.Status == InvitationCodeStatusDisabled {
-		return false, "注册码已被禁用"
+		return false, codeName + "已被禁用"
 	}
 	if invCode.Status == InvitationCodeStatusExhausted {
-		return false, "注册码已用完"
+		return false, codeName + "已用完"
 	}
 	if invCode.ExpiredAt > 0 && invCode.ExpiredAt < time.Now().Unix() {
-		return false, "注册码已过期"
+		return false, codeName + "已过期"
 	}
 	if invCode.MaxUses != -1 && invCode.UsedCount >= invCode.MaxUses {
-		return false, "注册码已用完"
+		return false, codeName + "已用完"
 	}
 
 	return true, ""
