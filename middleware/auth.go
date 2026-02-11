@@ -36,6 +36,7 @@ func authHelper(c *gin.Context, minRole int) {
 	id := session.Get("id")
 	status := session.Get("status")
 	useAccessToken := false
+	userGroup := session.Get("group") // track group for both session and access token paths
 	if username == nil {
 		// Check access token
 		accessToken := c.Request.Header.Get("Authorization")
@@ -62,6 +63,7 @@ func authHelper(c *gin.Context, minRole int) {
 			role = user.Role
 			id = user.Id
 			status = user.Status
+			userGroup = user.Group // C-3 fix: get group from user object, not empty session
 			useAccessToken = true
 		} else {
 			c.JSON(http.StatusOK, gin.H{
@@ -104,14 +106,26 @@ func authHelper(c *gin.Context, minRole int) {
 	// 实时查询用户状态，确保封禁立即生效
 	// 只在 session 中没有 access_token 时才查询（即使用 session 登录的用户）
 	if !useAccessToken && id != nil {
-		userCache, err := model.GetUserCache(id.(int))
-		if err == nil && userCache != nil {
-			// 使用实时的用户状态
-			status = userCache.Status
+		if idInt, ok := id.(int); ok {
+			userCache, err := model.GetUserCache(idInt)
+			if err == nil && userCache != nil {
+				// 使用实时的用户状态
+				status = userCache.Status
+			}
 		}
 	}
 
-	if status.(int) == common.UserStatusDisabled {
+	// C-2 fix: use safe type assertions to prevent nil panic
+	statusInt, ok := status.(int)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "会话状态无效，请重新登录",
+		})
+		c.Abort()
+		return
+	}
+	if statusInt == common.UserStatusDisabled {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "用户已被封禁",
@@ -119,7 +133,16 @@ func authHelper(c *gin.Context, minRole int) {
 		c.Abort()
 		return
 	}
-	if role.(int) < minRole {
+	roleInt, ok := role.(int)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "会话角色无效，请重新登录",
+		})
+		c.Abort()
+		return
+	}
+	if roleInt < minRole {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "无权进行此操作，权限不足",
@@ -127,7 +150,16 @@ func authHelper(c *gin.Context, minRole int) {
 		c.Abort()
 		return
 	}
-	if !validUserInfo(username.(string), role.(int)) {
+	usernameStr, ok := username.(string)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "会话用户名无效，请重新登录",
+		})
+		c.Abort()
+		return
+	}
+	if !validUserInfo(usernameStr, roleInt) {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "无权进行此操作，用户信息无效",
@@ -135,11 +167,11 @@ func authHelper(c *gin.Context, minRole int) {
 		c.Abort()
 		return
 	}
-	c.Set("username", username)
-	c.Set("role", role)
+	c.Set("username", usernameStr)
+	c.Set("role", roleInt)
 	c.Set("id", id)
-	c.Set("group", session.Get("group"))
-	c.Set("user_group", session.Get("group"))
+	c.Set("group", userGroup)
+	c.Set("user_group", userGroup)
 	c.Set("use_access_token", useAccessToken)
 
 	//userCache, err := model.GetUserCache(id.(int))

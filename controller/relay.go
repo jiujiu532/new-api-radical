@@ -21,6 +21,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/bytedance/gopkg/util/gopool"
@@ -44,7 +45,7 @@ func relayHandler(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPIErro
 		err = relay.RerankHelper(c, info)
 	case relayconstant.RelayModeEmbeddings:
 		err = relay.EmbeddingHelper(c, info)
-	case relayconstant.RelayModeResponses:
+	case relayconstant.RelayModeResponses, relayconstant.RelayModeResponsesCompact:
 		err = relay.ResponsesHelper(c, info)
 	default:
 		err = relay.TextHelper(c, info)
@@ -328,30 +329,7 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 	if _, ok := c.Get("specific_channel_id"); ok {
 		return false
 	}
-	if openaiErr.StatusCode == http.StatusTooManyRequests {
-		return true
-	}
-	if openaiErr.StatusCode == 307 {
-		return true
-	}
-	if openaiErr.StatusCode/100 == 5 {
-		// 超时不重试
-		if openaiErr.StatusCode == 504 || openaiErr.StatusCode == 524 {
-			return false
-		}
-		return true
-	}
-	if openaiErr.StatusCode == http.StatusBadRequest {
-		return false
-	}
-	if openaiErr.StatusCode == 408 {
-		// azure处理超时不重试
-		return false
-	}
-	if openaiErr.StatusCode/100 == 2 {
-		return false
-	}
-	return true
+	return operation_setting.ShouldRetryByStatusCode(openaiErr.StatusCode)
 }
 
 func processChannelError(c *gin.Context, channelError types.ChannelError, err *types.NewAPIError) {
@@ -543,31 +521,8 @@ func shouldRetryTaskRelay(c *gin.Context, channelId int, taskErr *dto.TaskError,
 	if _, ok := c.Get("specific_channel_id"); ok {
 		return false
 	}
-	if taskErr.StatusCode == http.StatusTooManyRequests {
-		return true
-	}
-	if taskErr.StatusCode == 307 {
-		return true
-	}
-	if taskErr.StatusCode/100 == 5 {
-		// 超时不重试
-		if taskErr.StatusCode == 504 || taskErr.StatusCode == 524 {
-			return false
-		}
-		return true
-	}
-	if taskErr.StatusCode == http.StatusBadRequest {
-		return false
-	}
-	if taskErr.StatusCode == 408 {
-		// azure处理超时不重试
-		return false
-	}
 	if taskErr.LocalError {
 		return false
 	}
-	if taskErr.StatusCode/100 == 2 {
-		return false
-	}
-	return true
+	return operation_setting.ShouldRetryByStatusCode(taskErr.StatusCode)
 }

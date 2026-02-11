@@ -250,7 +250,7 @@ func LinuxdoOAuth(c *gin.Context) {
 		// 使用通用 OAuth 注册处理
 		displayName := linuxdoUser.Name
 		if displayName == "" {
-			displayName = "LinuxDO User"
+			displayName = linuxdoUser.Username // Username 总是有值，优先用它而非硬编码
 		}
 		
 		result, err := HandleOAuthNewUser(c, OAuthUserInfo{

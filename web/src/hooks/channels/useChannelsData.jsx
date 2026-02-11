@@ -512,7 +512,7 @@ export const useChannelsData = () => {
     const { searchKeyword, searchGroup, searchModel } = getFormValues();
     setActivePage(page);
     if (searchKeyword === '' && searchGroup === '' && searchModel === '') {
-      loadChannels(page, pageSize, idSort, enableTagMode).then(() => {});
+      loadChannels(page, pageSize, idSort, enableTagMode).then(() => { });
     } else {
       searchChannels(
         enableTagMode,
@@ -553,8 +553,9 @@ export const useChannelsData = () => {
     try {
       let res = await API.get(`/api/group/`);
       if (res === undefined) return;
+      const groupData = Array.isArray(res.data?.data) ? res.data.data : [];
       setGroupOptions(
-        res.data.data.map((group) => ({
+        groupData.map((group) => ({
           label: group,
           value: group,
         })),
@@ -577,7 +578,7 @@ export const useChannelsData = () => {
     } catch (error) {
       showError(
         t('渠道复制失败: ') +
-          (error?.response?.data?.message || error?.message || error),
+        (error?.response?.data?.message || error?.message || error),
       );
     }
   };

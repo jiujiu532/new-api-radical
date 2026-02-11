@@ -165,30 +165,41 @@ func CompleteOAuthRegistrationWithCode(c *gin.Context) {
 		return
 	}
 
-	// 构建用户信息
+	// 构建用户信息 - 使用安全的类型断言
+	oauthTypeStr, ok := oauthType.(string)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "OAuth 类型无效，请重新授权",
+		})
+		return
+	}
+	oauthIdStr, ok := oauthId.(string)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "OAuth ID 无效，请重新授权",
+		})
+		return
+	}
 	info := OAuthUserInfo{
-		OAuthType: oauthType.(string),
-		OAuthId:   oauthId.(string),
+		OAuthType: oauthTypeStr,
+		OAuthId:   oauthIdStr,
 	}
 	if name != nil {
-		info.DisplayName = name.(string)
+		if nameStr, ok := name.(string); ok {
+			info.DisplayName = nameStr
+		}
 	}
 	if email != nil {
-		info.Email = email.(string)
+		if emailStr, ok := email.(string); ok {
+			info.Email = emailStr
+		}
 	}
 
-	// 设置默认显示名称
+	// 设置默认显示名称 - 使用 OAuthId（真实用户名/ID）而非硬编码
 	if info.DisplayName == "" {
-		switch info.OAuthType {
-		case "github":
-			info.DisplayName = "GitHub User"
-		case "linuxdo":
-			info.DisplayName = "LinuxDO User"
-		case "discord":
-			info.DisplayName = "Discord User"
-		default:
-			info.DisplayName = "OAuth User"
-		}
+		info.DisplayName = info.OAuthId
 	}
 
 	// 创建用户

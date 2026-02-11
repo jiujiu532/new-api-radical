@@ -68,3 +68,23 @@ func (l *InMemoryRateLimiter) Request(key string, maxRequestNum int, duration in
 	}
 	return true
 }
+
+// Check checks if a request would be allowed without recording it.
+// Returns true if the request would be allowed, false if rate limited.
+func (l *InMemoryRateLimiter) Check(key string, maxRequestNum int, duration int64) bool {
+	if maxRequestNum == 0 {
+		return true
+	}
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+	queue, ok := l.store[key]
+	if !ok {
+		return true
+	}
+	now := time.Now().Unix()
+	if len(*queue) < maxRequestNum {
+		return true
+	}
+	// Check if the oldest entry has expired
+	return now-(*queue)[0] >= duration
+}

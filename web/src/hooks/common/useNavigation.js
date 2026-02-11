@@ -81,7 +81,7 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
     ];
 
     // 根据配置过滤导航链接
-    return allLinks.filter((link) => {
+    const filteredLinks = allLinks.filter((link) => {
       if (link.itemKey === 'docs') {
         return docsLink && modules.docs;
       }
@@ -93,6 +93,22 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
       }
       return modules[link.itemKey] === true;
     });
+
+    // 追加自定义外部链接（排在末尾）
+    if (Array.isArray(headerNavModules?.customLinks)) {
+      headerNavModules.customLinks.forEach((link, index) => {
+        if (link.name && link.url) {
+          filteredLinks.push({
+            text: link.name,
+            itemKey: `custom_link_${index}`,
+            isExternal: true,
+            externalLink: link.url,
+          });
+        }
+      });
+    }
+
+    return filteredLinks;
   }, [t, docsLink, headerNavModules]);
 
   return {

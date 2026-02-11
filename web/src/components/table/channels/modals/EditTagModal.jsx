@@ -148,7 +148,8 @@ const EditTagModal = (props) => {
   const fetchModels = async () => {
     try {
       let res = await API.get(`/api/channel/models`);
-      let localModelOptions = res.data.data.map((model) => ({
+      const modelData = Array.isArray(res.data?.data) ? res.data.data : [];
+      let localModelOptions = modelData.map((model) => ({
         label: model.id,
         value: model.id,
       }));
@@ -164,8 +165,9 @@ const EditTagModal = (props) => {
       if (res === undefined) {
         return;
       }
+      const groupData = Array.isArray(res.data?.data) ? res.data.data : [];
       setGroupOptions(
-        res.data.data.map((group) => ({
+        groupData.map((group) => ({
           label: group,
           value: group,
         })),
@@ -259,7 +261,7 @@ const EditTagModal = (props) => {
 
   useEffect(() => {
     let localModelOptions = [...originModelOptions];
-    inputs.models.forEach((model) => {
+    (Array.isArray(inputs.models) ? inputs.models : []).forEach((model) => {
       if (!localModelOptions.find((option) => option.label === model)) {
         localModelOptions.push({
           label: model,

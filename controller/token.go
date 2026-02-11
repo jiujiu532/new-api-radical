@@ -8,6 +8,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/gin-gonic/gin"
 )
@@ -143,6 +144,19 @@ func AddToken(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	userId := c.GetInt("id")
+	// 检查用户 Token 数量限制
+	maxTokens := operation_setting.GetMaxUserTokens()
+	if maxTokens > 0 {
+		count, _ := model.CountUserTokens(userId)
+		if int(count) >= maxTokens {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": fmt.Sprintf("您最多只能创建 %d 个令牌", maxTokens),
+			})
+			return
+		}
+	}
 	if len(token.Name) > 50 {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -178,7 +192,7 @@ func AddToken(c *gin.Context) {
 		return
 	}
 	cleanToken := model.Token{
-		UserId:             c.GetInt("id"),
+		UserId:             userId,
 		Name:               token.Name,
 		Key:                key,
 		CreatedTime:        common.GetTimestamp(),

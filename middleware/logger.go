@@ -16,7 +16,9 @@ func SetUpLogger(server *gin.Engine) {
 	server.Use(gin.LoggerWithFormatter(func(param gin.LogFormatterParams) string {
 		var requestID string
 		if param.Keys != nil {
-			requestID = param.Keys[common.RequestIdKey].(string)
+			if rid, ok := param.Keys[common.RequestIdKey].(string); ok {
+				requestID = rid
+			}
 		}
 
 		clientIP := extractClientIP(param.Request)

@@ -108,11 +108,14 @@ func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usag
 	groupRatio := ratio_setting.GetGroupRatio(relayInfo.UsingGroup)
 	modelRatio, _, _ := ratio_setting.GetModelRatio(modelName)
 
+	// M-NEW-1 fix: safe type assertion for autoGroup
 	autoGroup, exists := common.GetContextKey(ctx, constant.ContextKeyAutoGroup)
 	if exists {
-		groupRatio = ratio_setting.GetGroupRatio(autoGroup.(string))
-		log.Printf("final group ratio: %f", groupRatio)
-		relayInfo.UsingGroup = autoGroup.(string)
+		if autoGroupStr, ok := autoGroup.(string); ok {
+			groupRatio = ratio_setting.GetGroupRatio(autoGroupStr)
+			log.Printf("final group ratio: %f", groupRatio)
+			relayInfo.UsingGroup = autoGroupStr
+		}
 	}
 
 	actualGroupRatio := groupRatio
@@ -138,6 +141,9 @@ func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usag
 
 	quota := calculateAudioQuota(quotaInfo)
 
+	// M-6 fix: check quota sufficiency first, then atomically deduct.
+	// The DB deduction itself (gorm.Expr "quota - ?") is atomic,
+	// but we still check to provide a descriptive error before attempting.
 	if userQuota < quota {
 		return fmt.Errorf("user quota is not enough, user quota: %s, need quota: %s", logger.FormatQuota(userQuota), logger.FormatQuota(quota))
 	}
@@ -146,10 +152,22 @@ func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usag
 		return fmt.Errorf("token quota is not enough, token remain quota: %s, need quota: %s", logger.FormatQuota(token.RemainQuota), logger.FormatQuota(quota))
 	}
 
-	err = PostConsumeQuota(relayInfo, quota, 0, false)
+	// Use atomic DB deduction with a WHERE guard to prevent over-deduction under concurrency
+	err = model.DecreaseUserQuotaAtomic(relayInfo.UserId, quota)
 	if err != nil {
-		return err
+		return fmt.Errorf("扣费失败（额度可能已被其他请求消耗）: %v", err)
 	}
+
+	// Deduct token quota (non-playground)
+	if !relayInfo.IsPlayground && !token.UnlimitedQuota {
+		err = model.DecreaseTokenQuota(relayInfo.TokenId, relayInfo.TokenKey, quota)
+		if err != nil {
+			// Rollback user quota on token deduction failure
+			_ = model.IncreaseUserQuota(relayInfo.UserId, quota, false)
+			return fmt.Errorf("令牌额度扣费失败: %v", err)
+		}
+	}
+
 	logger.LogInfo(ctx, "realtime streaming consume quota success, quota: "+fmt.Sprintf("%d", quota))
 	return nil
 }

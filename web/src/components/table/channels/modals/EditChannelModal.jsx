@@ -657,6 +657,18 @@ const EditChannelModal = (props) => {
         data.base_url = 'https://ark.cn-beijing.volces.com';
       }
 
+      // Normalize models and groups: API may return CSV strings, frontend expects arrays
+      if (typeof data.models === 'string') {
+        data.models = data.models.split(',').map(s => s.trim()).filter(Boolean);
+      } else if (!Array.isArray(data.models)) {
+        data.models = [];
+      }
+      if (typeof data.groups === 'string') {
+        data.groups = data.groups.split(',').map(s => s.trim()).filter(Boolean);
+      } else if (!Array.isArray(data.groups)) {
+        data.groups = ['default'];
+      }
+
       setInputs(data);
       if (formApiRef.current) {
         formApiRef.current.setValues(data);
@@ -678,7 +690,7 @@ const EditChannelModal = (props) => {
         system_prompt: data.system_prompt,
         system_prompt_override: data.system_prompt_override || false,
       });
-      initialModelsRef.current = (data.models || [])
+      initialModelsRef.current = (Array.isArray(data.models) ? data.models : [])
         .map((model) => (model || '').trim())
         .filter(Boolean);
       initialModelMappingRef.current = data.model_mapping || '';
@@ -772,7 +784,8 @@ const EditChannelModal = (props) => {
   const fetchModels = async () => {
     try {
       let res = await API.get(`/api/channel/models`);
-      const localModelOptions = res.data.data.map((model) => {
+      const modelData = Array.isArray(res.data?.data) ? res.data.data : [];
+      const localModelOptions = modelData.map((model) => {
         const id = (model.id || '').trim();
         return {
           key: id,
@@ -781,9 +794,9 @@ const EditChannelModal = (props) => {
         };
       });
       setOriginModelOptions(localModelOptions);
-      setFullModels(res.data.data.map((model) => model.id));
+      setFullModels(modelData.map((model) => model.id));
       setBasicModels(
-        res.data.data
+        modelData
           .filter((model) => {
             return model.id.startsWith('gpt-') || model.id.startsWith('text-');
           })
@@ -866,7 +879,7 @@ const EditChannelModal = (props) => {
       }
     });
 
-    inputs.models.forEach((model) => {
+    (Array.isArray(inputs.models) ? inputs.models : []).forEach((model) => {
       const v = (model || '').trim();
       if (!modelMap.has(v)) {
         modelMap.set(v, {
@@ -1193,7 +1206,7 @@ const EditChannelModal = (props) => {
       }
     }
 
-    const normalizedModels = (localInputs.models || [])
+    const normalizedModels = (Array.isArray(localInputs.models) ? localInputs.models : [])
       .map((model) => (model || '').trim())
       .filter(Boolean);
     localInputs.models = normalizedModels;
@@ -1334,19 +1347,31 @@ const EditChannelModal = (props) => {
       mode = multiToSingle ? 'multi_to_single' : 'batch';
     }
 
-    if (isEdit) {
-      res = await API.put(`/api/channel/`, {
-        ...localInputs,
-        id: parseInt(channelId),
-        key_mode: isMultiKeyChannel ? keyMode : undefined, // 只在多key模式下传递
-      });
-    } else {
-      res = await API.post(`/api/channel/`, {
-        mode: mode,
-        multi_key_mode: mode === 'multi_to_single' ? multiKeyMode : undefined,
-        channel: localInputs,
-      });
+    try {
+      if (isEdit) {
+        res = await API.put(`/api/channel/`, {
+          ...localInputs,
+          id: parseInt(channelId),
+          key_mode: isMultiKeyChannel ? keyMode : undefined, // 只在多key模式下传递
+        });
+      } else {
+        res = await API.post(`/api/channel/`, {
+          mode: mode,
+          multi_key_mode: mode === 'multi_to_single' ? multiKeyMode : undefined,
+          channel: localInputs,
+        });
+      }
+    } catch (error) {
+      console.error('Channel submit error:', error);
+      showError(error?.response?.data?.message || error?.message || t('请求失败'));
+      return;
     }
+
+    if (!res || !res.data) {
+      showError(t('请求失败，请重试'));
+      return;
+    }
+
     const { success, message } = res.data;
     if (success) {
       if (isEdit) {

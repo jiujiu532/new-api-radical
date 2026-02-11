@@ -25,6 +25,7 @@ import { useTranslation } from 'react-i18next';
 import SettingGeminiModel from '../../pages/Setting/Model/SettingGeminiModel';
 import SettingClaudeModel from '../../pages/Setting/Model/SettingClaudeModel';
 import SettingGlobalModel from '../../pages/Setting/Model/SettingGlobalModel';
+import SettingsChannelAffinity from '../../pages/Setting/Operation/SettingsChannelAffinity';
 
 const ModelSetting = () => {
   const { t } = useTranslation();
@@ -110,6 +111,10 @@ const ModelSetting = () => {
         {/* Claude */}
         <Card style={{ marginTop: '10px' }}>
           <SettingClaudeModel options={inputs} refresh={onRefresh} />
+        </Card>
+        {/* Channel Affinity */}
+        <Card style={{ marginTop: '10px' }}>
+          <SettingsChannelAffinity options={inputs} refresh={onRefresh} />
         </Card>
       </Spin>
     </>

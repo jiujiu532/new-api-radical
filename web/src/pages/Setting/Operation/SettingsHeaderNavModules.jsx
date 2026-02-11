@@ -23,10 +23,14 @@ import {
   Card,
   Col,
   Form,
+  Input,
+  Popconfirm,
   Row,
+  Space,
   Switch,
   Typography,
 } from '@douyinfe/semi-ui';
+import { IconPlus, IconDelete } from '@douyinfe/semi-icons';
 import { API, showError, showSuccess } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
 import { StatusContext } from '../../../context/Status';
@@ -45,11 +49,16 @@ export default function SettingsHeaderNavModules(props) {
     model_health: true,
     pricing: {
       enabled: true,
-      requireAuth: false, // 默认不需要登录鉴权
+      requireAuth: false,
     },
     docs: true,
     about: true,
+    customLinks: [],
   });
+
+  // 自定义链接输入状态
+  const [newLinkName, setNewLinkName] = useState('');
+  const [newLinkUrl, setNewLinkUrl] = useState('');
 
   // 处理顶栏模块配置变更
   function handleHeaderNavModuleChange(moduleKey) {
@@ -78,6 +87,32 @@ export default function SettingsHeaderNavModules(props) {
     setHeaderNavModules(newModules);
   }
 
+  // 添加自定义链接
+  function addCustomLink() {
+    const name = newLinkName.trim();
+    const url = newLinkUrl.trim();
+    if (!name || !url) {
+      showError(t('名称和链接地址不能为空'));
+      return;
+    }
+    const newModules = { ...headerNavModules };
+    const links = Array.isArray(newModules.customLinks) ? [...newModules.customLinks] : [];
+    links.push({ name, url });
+    newModules.customLinks = links;
+    setHeaderNavModules(newModules);
+    setNewLinkName('');
+    setNewLinkUrl('');
+  }
+
+  // 删除自定义链接
+  function removeCustomLink(index) {
+    const newModules = { ...headerNavModules };
+    const links = Array.isArray(newModules.customLinks) ? [...newModules.customLinks] : [];
+    links.splice(index, 1);
+    newModules.customLinks = links;
+    setHeaderNavModules(newModules);
+  }
+
   // 重置顶栏模块为默认配置
   function resetHeaderNavModules() {
     const defaultModules = {
@@ -90,8 +125,11 @@ export default function SettingsHeaderNavModules(props) {
       },
       docs: true,
       about: true,
+      customLinks: [],
     };
     setHeaderNavModules(defaultModules);
+    setNewLinkName('');
+    setNewLinkUrl('');
     showSuccess(t('已重置为默认配置'));
   }
 
@@ -322,6 +360,98 @@ export default function SettingsHeaderNavModules(props) {
             </Col>
           ))}
         </Row>
+
+        {/* 自定义链接管理 */}
+        <Card
+          style={{
+            borderRadius: '8px',
+            border: '1px solid var(--semi-color-border)',
+            background: 'var(--semi-color-bg-1)',
+            marginBottom: '24px',
+          }}
+          bodyStyle={{ padding: '16px' }}
+        >
+          <div style={{ fontWeight: '600', fontSize: '14px', marginBottom: '12px' }}>
+            {t('自定义链接')}
+          </div>
+          <Text type='secondary' size='small' style={{ display: 'block', marginBottom: '16px' }}>
+            {t('添加自定义外部链接，点击后在新标签页打开，排列在导航栏末尾')}
+          </Text>
+
+          {/* 已有链接列表 */}
+          {Array.isArray(headerNavModules.customLinks) && headerNavModules.customLinks.length > 0 && (
+            <div style={{ marginBottom: '16px' }}>
+              {headerNavModules.customLinks.map((link, index) => (
+                <div
+                  key={index}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '8px 12px',
+                    borderRadius: '6px',
+                    border: '1px solid var(--semi-color-border)',
+                    marginBottom: '8px',
+                    background: 'var(--semi-color-bg-2)',
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: '500', fontSize: '13px' }}>{link.name}</div>
+                    <Text
+                      type='secondary'
+                      size='small'
+                      ellipsis={{ showTooltip: true }}
+                      style={{ fontSize: '12px', display: 'block' }}
+                    >
+                      {link.url}
+                    </Text>
+                  </div>
+                  <Popconfirm
+                    title={t('确认删除')}
+                    content={t('确定要删除这个链接吗？')}
+                    onConfirm={() => removeCustomLink(index)}
+                  >
+                    <Button
+                      icon={<IconDelete />}
+                      type='danger'
+                      theme='borderless'
+                      size='small'
+                      style={{ marginLeft: '12px', flexShrink: 0 }}
+                    />
+                  </Popconfirm>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* 添加新链接 */}
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <Input
+              placeholder={t('链接名称')}
+              value={newLinkName}
+              onChange={setNewLinkName}
+              style={{ flex: 1 }}
+              size='default'
+            />
+            <Input
+              placeholder={t('链接地址 (https://...)')}
+              value={newLinkUrl}
+              onChange={setNewLinkUrl}
+              style={{ flex: 2 }}
+              size='default'
+            />
+            <Button
+              icon={<IconPlus />}
+              type='primary'
+              theme='light'
+              onClick={addCustomLink}
+              size='default'
+              style={{ flexShrink: 0 }}
+            >
+              {t('添加')}
+            </Button>
+          </div>
+        </Card>
 
         <div
           style={{

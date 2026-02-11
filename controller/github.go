@@ -133,7 +133,7 @@ func GitHubOAuth(c *gin.Context) {
 		// 新用户注册 - 使用通用 OAuth 注册处理
 		displayName := githubUser.Name
 		if displayName == "" {
-			displayName = "GitHub User"
+			displayName = githubUser.Login // Login 总是有值，优先用它而非硬编码
 		}
 		
 		result, err := HandleOAuthNewUser(c, OAuthUserInfo{

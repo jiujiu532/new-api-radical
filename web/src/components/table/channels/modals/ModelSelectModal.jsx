@@ -56,7 +56,7 @@ const ModelSelectModal = ({
   };
 
   const normalizedSelected = useMemo(
-    () => (selected || []).map(getModelName),
+    () => (Array.isArray(selected) ? selected : []).map(getModelName),
     [selected],
   );
 
@@ -71,7 +71,7 @@ const ModelSelectModal = ({
     () =>
       Array.from(
         new Set(
-          (redirectModels || [])
+          (Array.isArray(redirectModels) ? redirectModels : [])
             .map((model) => normalizeModelName(model))
             .filter(Boolean),
         ),
@@ -80,7 +80,7 @@ const ModelSelectModal = ({
   );
   const normalizedSelectedSet = useMemo(() => {
     const set = new Set();
-    (selected || []).forEach((model) => {
+    (Array.isArray(selected) ? selected : []).forEach((model) => {
       const normalized = normalizeModelName(model);
       if (normalized) {
         set.add(normalized);
@@ -181,19 +181,19 @@ const ModelSelectModal = ({
   const tabList = [
     ...(newModels.length > 0
       ? [
-          {
-            tab: `${t('新获取的模型')} (${newModels.length})`,
-            itemKey: 'new',
-          },
-        ]
+        {
+          tab: `${t('新获取的模型')} (${newModels.length})`,
+          itemKey: 'new',
+        },
+      ]
       : []),
     ...(existingModels.length > 0
       ? [
-          {
-            tab: `${t('已有的模型')} (${existingModels.length})`,
-            itemKey: 'existing',
-          },
-        ]
+        {
+          tab: `${t('已有的模型')} (${existingModels.length})`,
+          itemKey: 'existing',
+        },
+      ]
       : []),
   ];
 
