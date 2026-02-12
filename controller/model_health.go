@@ -40,6 +40,7 @@ type modelHealthHourlyRespItem struct {
 	TotalRequests   int64   `json:"total_requests"`
 	ErrorRequests   int64   `json:"error_requests"`
 	SuccessRequests int64   `json:"success_requests"`
+	SuccessTokens   int64   `json:"success_tokens"`
 }
 
 type publicModelsHealthHourlyLast24hRespItem struct {
@@ -51,6 +52,7 @@ type publicModelsHealthHourlyLast24hRespItem struct {
 	TotalRequests   int64   `json:"total_requests"`
 	ErrorRequests   int64   `json:"error_requests"`
 	SuccessRequests int64   `json:"success_requests"`
+	SuccessTokens   int64   `json:"success_tokens"`
 }
 
 // GetModelHealthHourlyStatsAPI 查询模型在小时 bucket 上的健康度（success_slices/total_slices/success_rate）。
@@ -131,6 +133,7 @@ func GetModelHealthHourlyStatsAPI(c *gin.Context) {
 				TotalRequests:   stat.TotalRequests,
 				ErrorRequests:   stat.ErrorRequests,
 				SuccessRequests: stat.SuccessRequests,
+				SuccessTokens:   stat.SuccessTokens,
 			})
 			continue
 		}
@@ -202,6 +205,7 @@ func GetPublicModelsHealthHourlyLast24hAPI(c *gin.Context) {
 					TotalRequests:   stat.TotalRequests,
 					ErrorRequests:   stat.ErrorRequests,
 					SuccessRequests: stat.SuccessRequests,
+					SuccessTokens:   stat.SuccessTokens,
 				})
 				continue
 			}

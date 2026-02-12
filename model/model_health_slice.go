@@ -22,6 +22,7 @@ type ModelHealthSlice5m struct {
 	HasSuccessQualified      bool   `json:"has_success_qualified" gorm:"not null;default:false;comment:1 if any qualified success in slice"`
 	MaxResponseBytes         int    `json:"max_response_bytes" gorm:"not null;default:0;comment:max response bytes observed in slice (0 if unknown)"`
 	MaxCompletionTokens      int    `json:"max_completion_tokens" gorm:"not null;default:0;comment:max completion tokens observed in slice"`
+	SumCompletionTokens      int    `json:"sum_completion_tokens" gorm:"not null;default:0;comment:sum of completion tokens in slice for token statistics"`
 	MaxAssistantChars        int    `json:"max_assistant_chars" gorm:"not null;default:0;comment:max assistant content char length observed in slice (0 if unknown)"`
 	UpdatedAt                time.Time
 }
@@ -89,6 +90,7 @@ func UpsertModelHealthSlice5m(ctx context.Context, db *gorm.DB, event *ModelHeal
 		HasSuccessQualified:      event.SuccessIsQualified,
 		MaxResponseBytes:         maxInt(0, event.ResponseBytes),
 		MaxCompletionTokens:      maxInt(0, event.CompletionTokens),
+		SumCompletionTokens:      maxInt(0, event.CompletionTokens),
 		MaxAssistantChars:        maxInt(0, event.AssistantChars),
 	}
 
@@ -106,6 +108,7 @@ func UpsertModelHealthSlice5m(ctx context.Context, db *gorm.DB, event *ModelHeal
 		"has_success_qualified":      gorm.Expr("has_success_qualified OR VALUES(has_success_qualified)"),
 		"max_response_bytes":         gorm.Expr("GREATEST(max_response_bytes, VALUES(max_response_bytes))"),
 		"max_completion_tokens":      gorm.Expr("GREATEST(max_completion_tokens, VALUES(max_completion_tokens))"),
+		"sum_completion_tokens":      gorm.Expr("sum_completion_tokens + VALUES(sum_completion_tokens)"),
 		"max_assistant_chars":        gorm.Expr("GREATEST(max_assistant_chars, VALUES(max_assistant_chars))"),
 	}
 
