@@ -104,7 +104,8 @@ func getOidcUserInfoByCode(code string) (*OidcUser, error) {
 func OidcAuth(c *gin.Context) {
 	session := sessions.Default(c)
 	state := c.Query("state")
-	if state == "" || session.Get("oauth_state") == nil || state != session.Get("oauth_state").(string) {
+	oauthState, _ := session.Get("oauth_state").(string)
+	if state == "" || oauthState == "" || state != oauthState {
 		c.JSON(http.StatusForbidden, gin.H{
 			"success": false,
 			"message": "state is empty or not same",
@@ -143,11 +144,11 @@ func OidcAuth(c *gin.Context) {
 		}
 	} else {
 		if common.RegisterEnabled {
-			// 邀请码验证
+			// 注册码验证
 			if common.InvitationCodeEnabled {
 				c.JSON(http.StatusOK, gin.H{
 					"success": false,
-					"message": "管理员开启了邀请码注册，请使用邀请码通过用户名密码方式注册",
+					"message": "管理员开启了注册码注册，请使用注册码通过用户名密码方式注册",
 				})
 				return
 			}
@@ -159,8 +160,10 @@ func OidcAuth(c *gin.Context) {
 			}
 			if oidcUser.Name != "" {
 				user.DisplayName = oidcUser.Name
+			} else if oidcUser.PreferredUsername != "" {
+				user.DisplayName = oidcUser.PreferredUsername
 			} else {
-				user.DisplayName = "OIDC User"
+				user.DisplayName = oidcUser.OpenID
 			}
 			err := user.Insert(0)
 			if err != nil {
@@ -179,7 +182,10 @@ func OidcAuth(c *gin.Context) {
 		}
 	}
 
-	if user.Status != common.UserStatusEnabled {
+	// 检查定时封禁是否过期
+	if model.CheckAndAutoUnban(&user) {
+		// 已自动解封，继续登录
+	} else if user.Status != common.UserStatusEnabled {
 		c.JSON(http.StatusOK, gin.H{
 			"message": "用户已被封禁",
 			"success": false,
@@ -216,7 +222,15 @@ func OidcBind(c *gin.Context) {
 	session := sessions.Default(c)
 	id := session.Get("id")
 	// id := c.GetInt("id")  // critical bug!
-	user.Id = id.(int)
+	idInt, ok := id.(int)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "无效的会话信息，请重新登录",
+		})
+		return
+	}
+	user.Id = idInt
 	err = user.FillUserById()
 	if err != nil {
 		common.ApiError(c, err)

@@ -50,3 +50,6 @@ scripts/
 *.temp
 *.swp
 *.bak
+
+bin/new-api-*
+

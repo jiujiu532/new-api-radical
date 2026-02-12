@@ -90,11 +90,11 @@ func WeChatAuth(c *gin.Context) {
 		}
 	} else {
 		if common.RegisterEnabled {
-			// 邀请码验证
+			// 注册码验证
 			if common.InvitationCodeEnabled {
 				c.JSON(http.StatusOK, gin.H{
 					"success": false,
-					"message": "管理员开启了邀请码注册，请使用邀请码通过用户名密码方式注册",
+					"message": "管理员开启了注册码注册，请使用注册码通过用户名密码方式注册",
 				})
 				return
 			}
@@ -119,7 +119,10 @@ func WeChatAuth(c *gin.Context) {
 		}
 	}
 
-	if user.Status != common.UserStatusEnabled {
+	// 检查定时封禁是否过期
+	if model.CheckAndAutoUnban(&user) {
+		// 已自动解封，继续登录
+	} else if user.Status != common.UserStatusEnabled {
 		c.JSON(http.StatusOK, gin.H{
 			"message": "用户已被封禁",
 			"success": false,
@@ -155,8 +158,16 @@ func WeChatBind(c *gin.Context) {
 	}
 	session := sessions.Default(c)
 	id := session.Get("id")
+	idInt, ok := id.(int)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "无效的会话信息，请重新登录",
+		})
+		return
+	}
 	user := model.User{
-		Id: id.(int),
+		Id: idInt,
 	}
 	err = user.FillUserById()
 	if err != nil {

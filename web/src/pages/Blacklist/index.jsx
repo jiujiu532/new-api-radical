@@ -43,6 +43,7 @@ import {
     IconMail,
     IconSend,
     IconTickCircle,
+    IconClock,
     IconKey,
     IconLink,
     IconArrowLeft,
@@ -490,14 +491,54 @@ const Blacklist = () => {
             ),
         },
         {
-            title: t('状态'),
-            dataIndex: 'status',
-            width: 100,
-            render: () => (
-                <Tag color="red" prefixIcon={<IconLock />}>
-                    {t('已封禁')}
-                </Tag>
-            ),
+            title: t('封禁状态'),
+            dataIndex: 'ban_type',
+            width: 200,
+            render: (banType, record) => {
+                if (banType === 'temporary' && record.banned_until) {
+                    const now = Math.floor(Date.now() / 1000);
+                    const remaining = record.banned_until - now;
+                    if (remaining <= 0) {
+                        return (
+                            <Tag color="green" prefixIcon={<IconUnlock />}>
+                                {t('即将解封')}
+                            </Tag>
+                        );
+                    }
+                    // 格式化剩余时间
+                    const formatRemaining = (sec) => {
+                        if (sec >= 86400) {
+                            const days = Math.floor(sec / 86400);
+                            const hours = Math.floor((sec % 86400) / 3600);
+                            return `${days}天${hours}小时`;
+                        } else if (sec >= 3600) {
+                            const hours = Math.floor(sec / 3600);
+                            const minutes = Math.floor((sec % 3600) / 60);
+                            return `${hours}小时${minutes}分`;
+                        } else if (sec >= 60) {
+                            const minutes = Math.floor(sec / 60);
+                            const seconds = sec % 60;
+                            return `${minutes}分${seconds}秒`;
+                        } else {
+                            return `${sec}秒`;
+                        }
+                    };
+                    const unbanDate = new Date(record.banned_until * 1000);
+                    const tooltip = `解封时间: ${unbanDate.toLocaleString()}`;
+                    return (
+                        <Tooltip content={tooltip}>
+                            <Tag color="orange" prefixIcon={<IconClock />}>
+                                {t('定时封禁')} · {formatRemaining(remaining)}
+                            </Tag>
+                        </Tooltip>
+                    );
+                }
+                return (
+                    <Tag color="red" prefixIcon={<IconLock />}>
+                        {t('永久封禁')}
+                    </Tag>
+                );
+            },
         },
         {
             title: t('备注'),

@@ -570,12 +570,66 @@ func ResponseClaude2OpenAI(reqMode int, claudeResponse *dto.ClaudeResponse) *dto
 }
 
 type ClaudeResponseInfo struct {
-	ResponseId   string
-	Created      int64
-	Model        string
-	ResponseText strings.Builder
-	Usage        *dto.Usage
-	Done         bool
+	ResponseId        string
+	Created           int64
+	Model             string
+	ResponseText      strings.Builder
+	Usage             *dto.Usage
+	Done              bool
+	ThinkingBlocks    map[int]bool // 流式：记录哪些 content block 是 thinking 类型
+	SignatureReceived map[int]bool // 流式：记录哪些 thinking block 已收到 signature_delta
+}
+
+// injectThinkingSignature 为非流式 Claude 响应中缺少 signature 的 thinking 内容块注入空 signature。
+// 使用通用 JSON 解析，避免丢失 ClaudeResponse 结构体未定义的字段。
+func injectThinkingSignature(data []byte) []byte {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return data
+	}
+
+	contentRaw, exists := raw["content"]
+	if !exists {
+		return data
+	}
+
+	var contentBlocks []map[string]json.RawMessage
+	if err := json.Unmarshal(contentRaw, &contentBlocks); err != nil {
+		return data
+	}
+
+	modified := false
+	for i, block := range contentBlocks {
+		typeRaw, hasType := block["type"]
+		if !hasType {
+			continue
+		}
+		var blockType string
+		if err := json.Unmarshal(typeRaw, &blockType); err != nil {
+			continue
+		}
+		if blockType == "thinking" {
+			if _, hasSignature := block["signature"]; !hasSignature {
+				contentBlocks[i]["signature"] = json.RawMessage(`""`)
+				modified = true
+			}
+		}
+	}
+
+	if !modified {
+		return data
+	}
+
+	newContent, err := json.Marshal(contentBlocks)
+	if err != nil {
+		return data
+	}
+	raw["content"] = json.RawMessage(newContent)
+	result, err := json.Marshal(raw)
+	if err != nil {
+		return data
+	}
+	return result
 }
 
 func FormatClaudeResponseInfo(requestMode int, claudeResponse *dto.ClaudeResponse, oaiResponse *dto.ChatCompletionsStreamResponse, claudeInfo *ClaudeResponseInfo) bool {
@@ -642,7 +696,30 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 			if claudeResponse.Type == "message_start" {
 				// message_start, 获取usage
 				info.UpstreamModelName = claudeResponse.Message.Model
+			} else if claudeResponse.Type == "content_block_start" {
+				// 记录 thinking 类型的 content block
+				if claudeResponse.ContentBlock != nil && claudeResponse.ContentBlock.Type == "thinking" {
+					if claudeInfo.ThinkingBlocks == nil {
+						claudeInfo.ThinkingBlocks = make(map[int]bool)
+					}
+					claudeInfo.ThinkingBlocks[claudeResponse.GetIndex()] = true
+				}
 			} else if claudeResponse.Type == "content_block_delta" {
+				// 记录已收到 signature_delta 的 thinking block
+				if claudeResponse.Delta != nil && claudeResponse.Delta.Type == "signature_delta" {
+					if claudeInfo.SignatureReceived == nil {
+						claudeInfo.SignatureReceived = make(map[int]bool)
+					}
+					claudeInfo.SignatureReceived[claudeResponse.GetIndex()] = true
+				}
+			} else if claudeResponse.Type == "content_block_stop" {
+				// 如果是 thinking block 且未收到 signature_delta，注入一个空的
+				idx := claudeResponse.GetIndex()
+				if claudeInfo.ThinkingBlocks[idx] && !claudeInfo.SignatureReceived[idx] {
+					sigEvent := fmt.Sprintf(`{"type":"content_block_delta","index":%d,"delta":{"type":"signature_delta","signature":""}}`, idx)
+					sigResp := dto.ClaudeResponse{Type: "content_block_delta"}
+					helper.ClaudeChunkData(c, sigResp, sigEvent)
+				}
 			} else if claudeResponse.Type == "message_delta" {
 			}
 		}
@@ -755,7 +832,7 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 			return types.NewError(err, types.ErrorCodeBadResponseBody)
 		}
 	case types.RelayFormatClaude:
-		responseData = data
+		responseData = injectThinkingSignature(data)
 	}
 
 	if claudeResponse.Usage.ServerToolUse != nil && claudeResponse.Usage.ServerToolUse.WebSearchRequests > 0 {

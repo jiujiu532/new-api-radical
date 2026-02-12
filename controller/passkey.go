@@ -269,7 +269,9 @@ func PasskeyLoginFinish(c *gin.Context) {
 			return nil, fmt.Errorf("用户信息获取失败: %w", err)
 		}
 
-		if user.Status != common.UserStatusEnabled {
+		if model.CheckAndAutoUnban(user) {
+			// 已自动解封
+		} else if user.Status != common.UserStatusEnabled {
 			return nil, errors.New("该用户已被禁用")
 		}
 
@@ -304,7 +306,9 @@ func PasskeyLoginFinish(c *gin.Context) {
 		return
 	}
 
-	if modelUser.Status != common.UserStatusEnabled {
+	if model.CheckAndAutoUnban(modelUser) {
+		// 已自动解封
+	} else if modelUser.Status != common.UserStatusEnabled {
 		common.ApiErrorMsg(c, "该用户已被禁用")
 		return
 	}
@@ -490,7 +494,9 @@ func getSessionUser(c *gin.Context) (*model.User, error) {
 	if err := user.FillUserById(); err != nil {
 		return nil, err
 	}
-	if user.Status != common.UserStatusEnabled {
+	if model.CheckAndAutoUnban(user) {
+		// 已自动解封
+	} else if user.Status != common.UserStatusEnabled {
 		return nil, errors.New("该用户已被禁用")
 	}
 	return user, nil

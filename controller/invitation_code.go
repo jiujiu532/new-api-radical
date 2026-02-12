@@ -51,7 +51,7 @@ func GetInvitationCodeStats(c *gin.Context) {
 	})
 }
 
-// GenerateInvitationCodes 批量生成邀请码
+// GenerateInvitationCodes 批量生成注册码/解封码
 func GenerateInvitationCodes(c *gin.Context) {
 	var req struct {
 		Type      int    `json:"type" binding:"required"`       // 1=注册码, 2=解封码
@@ -88,7 +88,7 @@ func GenerateInvitationCodes(c *gin.Context) {
 	})
 }
 
-// GetInvitationCodes 获取邀请码列表
+// GetInvitationCodes 获取注册码/解封码列表
 func GetInvitationCodes(c *gin.Context) {
 	codeType, _ := strconv.Atoi(c.DefaultQuery("type", "0"))
 	status, _ := strconv.Atoi(c.DefaultQuery("status", "0"))
@@ -122,7 +122,7 @@ func GetInvitationCodes(c *gin.Context) {
 	})
 }
 
-// GetInvitationCode 获取单个邀请码详情
+// GetInvitationCode 获取单个注册码/解封码详情
 func GetInvitationCode(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
@@ -138,7 +138,7 @@ func GetInvitationCode(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": "邀请码不存在",
+			"message": "注册码/解封码不存在",
 		})
 		return
 	}
@@ -149,7 +149,7 @@ func GetInvitationCode(c *gin.Context) {
 	})
 }
 
-// UpdateInvitationCode 更新邀请码
+// UpdateInvitationCode 更新注册码/解封码
 func UpdateInvitationCode(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
@@ -213,7 +213,7 @@ func UpdateInvitationCode(c *gin.Context) {
 	})
 }
 
-// DeleteInvitationCode 删除邀请码
+// DeleteInvitationCode 删除注册码/解封码
 func DeleteInvitationCode(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
@@ -240,7 +240,7 @@ func DeleteInvitationCode(c *gin.Context) {
 	})
 }
 
-// GetInvitationCodeUsageLogs 获取邀请码使用记录
+// GetInvitationCodeUsageLogs 获取注册码/解封码使用记录
 func GetInvitationCodeUsageLogs(c *gin.Context) {
 	codeId, _ := strconv.Atoi(c.DefaultQuery("code_id", "0"))
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
@@ -273,7 +273,7 @@ func GetInvitationCodeUsageLogs(c *gin.Context) {
 	})
 }
 
-// ValidateInvitationCode 验证邀请码是否有效（不消耗使用次数，供前端预检）
+// ValidateInvitationCode 验证注册码/解封码是否有效（不消耗使用次数，供前端预检）
 func ValidateInvitationCode(c *gin.Context) {
 	var req struct {
 		Code string `json:"code" binding:"required"`
@@ -310,7 +310,7 @@ func ValidateInvitationCode(c *gin.Context) {
 	})
 }
 
-// BatchUpdateInvitationCodeStatus 批量更新邀请码状态
+// BatchUpdateInvitationCodeStatus 批量更新注册码/解封码状态
 func BatchUpdateInvitationCodeStatus(c *gin.Context) {
 	var req struct {
 		Ids    []int `json:"ids" binding:"required"`
@@ -328,7 +328,7 @@ func BatchUpdateInvitationCodeStatus(c *gin.Context) {
 	if len(req.Ids) == 0 {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": "请选择要更新的邀请码",
+			"message": "请选择要更新的注册码/解封码",
 		})
 		return
 	}
@@ -348,7 +348,7 @@ func BatchUpdateInvitationCodeStatus(c *gin.Context) {
 	})
 }
 
-// BatchDeleteInvitationCodes 批量删除邀请码
+// BatchDeleteInvitationCodes 批量删除注册码/解封码
 func BatchDeleteInvitationCodes(c *gin.Context) {
 	var req struct {
 		Ids []int `json:"ids" binding:"required"`
@@ -365,7 +365,7 @@ func BatchDeleteInvitationCodes(c *gin.Context) {
 	if len(req.Ids) == 0 {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": "请选择要删除的邀请码",
+			"message": "请选择要删除的注册码/解封码",
 		})
 		return
 	}
@@ -385,7 +385,7 @@ func BatchDeleteInvitationCodes(c *gin.Context) {
 	})
 }
 
-// ExportInvitationCodes 导出邀请码（仅导出码值）
+// ExportInvitationCodes 导出注册码/解封码（仅导出码值）
 // 参数: type=1/2, count=-1表示全部，只导出有效的（状态=1，未过期，未用完）
 func ExportInvitationCodes(c *gin.Context) {
 	codeType, _ := strconv.Atoi(c.DefaultQuery("type", "1"))
@@ -434,7 +434,7 @@ func ExportInvitationCodes(c *gin.Context) {
 	})
 }
 
-// DeleteAllInvitationCodesByType 按类型删除所有邀请码
+// DeleteAllInvitationCodesByType 按类型删除所有注册码/解封码
 func DeleteAllInvitationCodesByType(c *gin.Context) {
 	codeTypeStr := c.Query("type")
 	codeType, err := strconv.Atoi(codeTypeStr)

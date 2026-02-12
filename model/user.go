@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
@@ -48,17 +49,21 @@ type User struct {
 	Setting          string         `json:"setting" gorm:"type:text;column:setting"`
 	Remark           string         `json:"remark,omitempty" gorm:"type:varchar(255)" validate:"max=255"`
 	StripeCustomer   string         `json:"stripe_customer" gorm:"type:varchar(64);column:stripe_customer;index"`
+	BannedAt         int64          `json:"banned_at" gorm:"type:bigint;default:0;column:banned_at"`
+	BanDuration      int64          `json:"ban_duration" gorm:"type:bigint;default:0;column:ban_duration"` // 秒，0=永久
 }
 
 func (user *User) ToBaseUser() *UserBase {
 	cache := &UserBase{
-		Id:       user.Id,
-		Group:    user.Group,
-		Quota:    user.Quota,
-		Status:   user.Status,
-		Username: user.Username,
-		Setting:  user.Setting,
-		Email:    user.Email,
+		Id:          user.Id,
+		Group:       user.Group,
+		Quota:       user.Quota,
+		Status:      user.Status,
+		Username:    user.Username,
+		Setting:     user.Setting,
+		Email:       user.Email,
+		BannedAt:    user.BannedAt,
+		BanDuration: user.BanDuration,
 	}
 	return cache
 }
@@ -521,9 +526,72 @@ func (user *User) ValidateAndFill() (err error) {
 		return errors.New("用户名或密码错误")
 	}
 	if user.Status != common.UserStatusEnabled {
-		return errors.New("USER_DISABLED") // 特殊错误标识，用于前端识别
+		// 检查是否是定时封禁且已过期
+		if CheckAndAutoUnban(user) {
+			return nil // 已自动解封，允许登录
+		}
+		// 如果是定时封禁，返回带过期时间的特殊标识
+		if user.BanDuration > 0 && user.BannedAt > 0 {
+			bannedUntil := user.BannedAt + user.BanDuration
+			return fmt.Errorf("USER_TIMED_BAN:%d", bannedUntil)
+		}
+		return errors.New("USER_DISABLED") // 永久封禁
 	}
 	return nil
+}
+
+// AutoUnbanUser 自动解封用户（定时封禁到期）
+func AutoUnbanUser(userId int) error {
+	err := DB.Model(&User{}).Where("id = ?", userId).
+		Updates(map[string]interface{}{
+			"status":       common.UserStatusEnabled,
+			"banned_at":    0,
+			"ban_duration": 0,
+		}).Error
+	if err == nil {
+		invalidateUserCache(userId)
+		RecordLog(userId, LogTypeSystem, "定时封禁到期，自动解封")
+	}
+	return err
+}
+
+// CheckAndAutoUnban 检查定时封禁是否已过期，过期则自动解封
+// 返回 true 表示已自动解封
+func CheckAndAutoUnban(user *User) bool {
+	if user.Status != common.UserStatusDisabled {
+		return false
+	}
+	if user.BanDuration > 0 && user.BannedAt > 0 {
+		bannedUntil := user.BannedAt + user.BanDuration
+		if time.Now().Unix() >= bannedUntil {
+			if err := AutoUnbanUser(user.Id); err != nil {
+				common.SysError("auto unban user failed: " + err.Error())
+				return false // DB 更新失败，不修改内存状态
+			}
+			// 同步更新内存中的 user 对象，确保后续逻辑（如 setupLogin 保存 session）使用正确状态
+			user.Status = common.UserStatusEnabled
+			user.BannedAt = 0
+			user.BanDuration = 0
+			return true
+		}
+	}
+	return false
+}
+
+// CheckAndAutoUnbanById 供中间件使用：基于 userId 和缓存的封禁信息检查定时封禁是否过期
+// 返回 true 表示已自动解封
+func CheckAndAutoUnbanById(userId int, bannedAt, banDuration int64) bool {
+	if banDuration <= 0 || bannedAt <= 0 {
+		return false
+	}
+	if time.Now().Unix() >= bannedAt+banDuration {
+		if err := AutoUnbanUser(userId); err != nil {
+			common.SysError("auto unban user failed: " + err.Error())
+			return false
+		}
+		return true
+	}
+	return false
 }
 
 func (user *User) FillUserById() error {

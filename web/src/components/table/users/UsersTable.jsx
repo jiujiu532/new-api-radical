@@ -105,8 +105,8 @@ const UsersTable = (usersData) => {
     setShowDemoteModal(false);
   };
 
-  const handleEnableDisableConfirm = () => {
-    manageUser(modalUser.id, enableDisableAction, modalUser);
+  const handleEnableDisableConfirm = (banDuration = 0) => {
+    manageUser(modalUser.id, enableDisableAction, modalUser, banDuration);
     setShowEnableDisableModal(false);
   };
 
@@ -149,12 +149,12 @@ const UsersTable = (usersData) => {
   const tableColumns = useMemo(() => {
     return compactMode
       ? columns.map((col) => {
-          if (col.dataIndex === 'operate') {
-            const { fixed, ...rest } = col;
-            return rest;
-          }
-          return col;
-        })
+        if (col.dataIndex === 'operate') {
+          const { fixed, ...rest } = col;
+          return rest;
+        }
+        return col;
+      })
       : columns;
   }, [compactMode, columns]);
 

@@ -15,13 +15,15 @@ import (
 
 // UserBase struct remains the same as it represents the cached data structure
 type UserBase struct {
-	Id       int    `json:"id"`
-	Group    string `json:"group"`
-	Email    string `json:"email"`
-	Quota    int    `json:"quota"`
-	Status   int    `json:"status"`
-	Username string `json:"username"`
-	Setting  string `json:"setting"`
+	Id          int    `json:"id"`
+	Group       string `json:"group"`
+	Email       string `json:"email"`
+	Quota       int    `json:"quota"`
+	Status      int    `json:"status"`
+	Username    string `json:"username"`
+	Setting     string `json:"setting"`
+	BannedAt    int64  `json:"banned_at"`
+	BanDuration int64  `json:"ban_duration"`
 }
 
 func (user *UserBase) WriteContext(c *gin.Context) {
@@ -55,6 +57,11 @@ func invalidateUserCache(userId int) error {
 		return nil
 	}
 	return common.RedisDelKey(getUserCacheKey(userId))
+}
+
+// InvalidateUserCache 导出版本，供 controller 等包调用
+func InvalidateUserCache(userId int) error {
+	return invalidateUserCache(userId)
 }
 
 // updateUserCache updates all user cache fields using hash
@@ -100,13 +107,15 @@ func GetUserCache(userId int) (userCache *UserBase, err error) {
 
 	// Create cache object from user data
 	userCache = &UserBase{
-		Id:       user.Id,
-		Group:    user.Group,
-		Quota:    user.Quota,
-		Status:   user.Status,
-		Username: user.Username,
-		Setting:  user.Setting,
-		Email:    user.Email,
+		Id:          user.Id,
+		Group:       user.Group,
+		Quota:       user.Quota,
+		Status:      user.Status,
+		Username:    user.Username,
+		Setting:     user.Setting,
+		Email:       user.Email,
+		BannedAt:    user.BannedAt,
+		BanDuration: user.BanDuration,
 	}
 
 	return userCache, nil

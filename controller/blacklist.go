@@ -137,8 +137,12 @@ func GetBlacklist(c *gin.Context) {
 		DisplayName string   `json:"display_name"`  // 脱敏显示名
 		Email       string   `json:"email"`         // 脱敏邮箱
 		AuthMethods []string `json:"auth_methods"`  // 注册/绑定方式
-		HasEmail    bool     `json:"has_email"`     // 是否有邮箱（用于前端判断验证方式）
+		HasEmail    bool     `json:"has_email"`     // 是否有邮箱
 		Remark      string   `json:"remark"`
+		BannedAt    int64    `json:"banned_at"`     // 封禁时间戳
+		BanDuration int64    `json:"ban_duration"`  // 封禁时长（秒），0=永久
+		BannedUntil int64    `json:"banned_until"` // 解封时间戳，0=永久
+		BanType     string   `json:"ban_type"`      // "permanent" 或 "temporary"
 	}
 
 	var users []model.User
@@ -146,7 +150,7 @@ func GetBlacklist(c *gin.Context) {
 
 	query := model.DB.Model(&model.User{}).Where("status = ?", common.UserStatusDisabled)
 	query.Count(&total)
-	query.Select("id, username, display_name, email, github_id, discord_id, linux_do_id, wechat_id, telegram_id, oidc_id, remark").
+	query.Select("id, username, display_name, email, github_id, discord_id, linux_do_id, wechat_id, telegram_id, oidc_id, remark, banned_at, ban_duration").
 		Order("id desc").
 		Offset((page - 1) * pageSize).
 		Limit(pageSize).
@@ -155,6 +159,12 @@ func GetBlacklist(c *gin.Context) {
 	// 转换为脱敏信息
 	bannedUsers := make([]BannedUserInfo, len(users))
 	for i, u := range users {
+		banType := "permanent"
+		var bannedUntil int64
+		if u.BanDuration > 0 && u.BannedAt > 0 {
+			banType = "temporary"
+			bannedUntil = u.BannedAt + u.BanDuration
+		}
 		bannedUsers[i] = BannedUserInfo{
 			Id:          u.Id,
 			Username:    maskUsername(u.Username),
@@ -163,6 +173,10 @@ func GetBlacklist(c *gin.Context) {
 			AuthMethods: getAuthMethods(u),
 			HasEmail:    u.Email != "",
 			Remark:      u.Remark,
+			BannedAt:    u.BannedAt,
+			BanDuration: u.BanDuration,
+			BannedUntil: bannedUntil,
+			BanType:     banType,
 		}
 	}
 
@@ -545,8 +559,12 @@ func UnbanWithCode(c *gin.Context) {
 		return
 	}
 
-	// 解封用户
-	err = model.DB.Model(&user).Update("status", common.UserStatusEnabled).Error
+	// 解封用户（同时清除封禁时间信息）
+	err = model.DB.Model(&user).Updates(map[string]interface{}{
+		"status":       common.UserStatusEnabled,
+		"banned_at":    0,
+		"ban_duration": 0,
+	}).Error
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
@@ -554,6 +572,8 @@ func UnbanWithCode(c *gin.Context) {
 		})
 		return
 	}
+	// 刷新 Redis 缓存，确保中间件立即放行
+	model.InvalidateUserCache(user.Id)
 
 	// 记录日志
 	model.RecordLog(user.Id, model.LogTypeManage, fmt.Sprintf("用户使用解封码自助解封（验证方式：%s）", req.VerifyMethod))

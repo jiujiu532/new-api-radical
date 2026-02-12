@@ -104,8 +104,8 @@ func createOAuthUser(c *gin.Context, info OAuthUserInfo) (*model.User, error) {
 	// 处理邀请人
 	affCode := session.Get("aff")
 	inviterId := 0
-	if affCode != nil {
-		inviterId, _ = model.GetUserIdByAffCode(affCode.(string))
+	if affCodeStr, ok := affCode.(string); ok && affCodeStr != "" {
+		inviterId, _ = model.GetUserIdByAffCode(affCodeStr)
 	}
 
 	// 插入用户

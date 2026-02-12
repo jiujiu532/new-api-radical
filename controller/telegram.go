@@ -42,7 +42,15 @@ func TelegramBind(c *gin.Context) {
 
 	session := sessions.Default(c)
 	id := session.Get("id")
-	user := model.User{Id: id.(int)}
+	idInt, ok := id.(int)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "无效的会话信息，请重新登录",
+		})
+		return
+	}
+	user := model.User{Id: idInt}
 	if err := user.FillUserById(); err != nil {
 		c.JSON(200, gin.H{
 			"message": err.Error(),
@@ -96,8 +104,10 @@ func TelegramLogin(c *gin.Context) {
 		return
 	}
 	
-	// 检查用户是否被封禁
-	if user.Status != common.UserStatusEnabled {
+	// 检查定时封禁是否过期
+	if model.CheckAndAutoUnban(&user) {
+		// 已自动解封，继续登录
+	} else if user.Status != common.UserStatusEnabled {
 		c.JSON(http.StatusOK, gin.H{
 			"message": "用户已被封禁",
 			"success": false,

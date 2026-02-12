@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
@@ -62,11 +63,28 @@ func Login(c *gin.Context) {
 		// 检查是否是用户被禁用
 		if err.Error() == "USER_DISABLED" {
 			c.JSON(http.StatusOK, gin.H{
-				"message": "您的账户已被封禁，请前往小黑屋使用解封码解封",
+				"message": "您的账户已被永久封禁，请前往小黑屋使用解封码解封",
 				"success": false,
 				"data": gin.H{
 					"user_disabled": true,
 					"username":      username,
+					"ban_type":      "permanent",
+				},
+			})
+			return
+		}
+		// 定时封禁
+		if strings.HasPrefix(err.Error(), "USER_TIMED_BAN:") {
+			bannedUntilStr := strings.TrimPrefix(err.Error(), "USER_TIMED_BAN:")
+			bannedUntil, _ := strconv.ParseInt(bannedUntilStr, 10, 64)
+			c.JSON(http.StatusOK, gin.H{
+				"message": "您的账户已被临时封禁，可前往小黑屋使用解封码提前解封",
+				"success": false,
+				"data": gin.H{
+					"user_disabled": true,
+					"username":      username,
+					"ban_type":      "temporary",
+					"banned_until":  bannedUntil,
 				},
 			})
 			return
@@ -298,13 +316,13 @@ func Register(c *gin.Context) {
 		}
 	}
 
-	// 注册成功后消耗邀请码使用次数
+	// 注册成功后消耗注册码使用次数
 	if common.InvitationCodeEnabled && user.InvitationCode != "" {
 		clientIP := c.ClientIP()
 		_, err := model.ValidateAndUseCode(user.InvitationCode, model.InvitationCodeTypeRegister, insertedUser.Id, insertedUser.Username, clientIP)
 		if err != nil {
 			// 记录日志但不影响注册结果
-			common.SysLog(fmt.Sprintf("消耗邀请码失败（用户 %s）: %v", insertedUser.Username, err))
+			common.SysLog(fmt.Sprintf("消耗注册码失败（用户 %s）: %v", insertedUser.Username, err))
 		}
 	}
 
@@ -928,8 +946,9 @@ func CreateUser(c *gin.Context) {
 }
 
 type ManageRequest struct {
-	Id     int    `json:"id"`
-	Action string `json:"action"`
+	Id          int    `json:"id"`
+	Action      string `json:"action"`
+	BanDuration int64  `json:"ban_duration"` // 封禁时长（秒），0=永久
 }
 
 // ManageUser Only admin user can do this
@@ -966,7 +985,6 @@ func ManageUser(c *gin.Context) {
 	}
 	switch req.Action {
 	case "disable":
-		user.Status = common.UserStatusDisabled
 		if user.Role == common.RoleRootUser {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
@@ -974,8 +992,40 @@ func ManageUser(c *gin.Context) {
 			})
 			return
 		}
+		// 使用 map 更新，因为 GORM Updates(struct) 会忽略零值字段（BanDuration=0 是永久封禁）
+		if req.BanDuration < 0 {
+			req.BanDuration = 0 // 负值视为永久封禁
+		}
+		bannedAt := time.Now().Unix()
+		err := model.DB.Model(&user).Updates(map[string]interface{}{
+			"status":       common.UserStatusDisabled,
+			"banned_at":    bannedAt,
+			"ban_duration": req.BanDuration,
+		}).Error
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		user.Status = common.UserStatusDisabled
+		user.BannedAt = bannedAt
+		user.BanDuration = req.BanDuration
+		model.InvalidateUserCache(user.Id)
 	case "enable":
+		// 直接使用 map 更新，因为 GORM Updates(struct) 会忽略零值字段
+		err := model.DB.Model(&user).Updates(map[string]interface{}{
+			"status":       common.UserStatusEnabled,
+			"banned_at":    0,
+			"ban_duration": 0,
+		}).Error
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		// 刷新缓存
 		user.Status = common.UserStatusEnabled
+		user.BannedAt = 0
+		user.BanDuration = 0
+		model.InvalidateUserCache(user.Id)
 	case "delete":
 		if user.Role == common.RoleRootUser {
 			c.JSON(http.StatusOK, gin.H{
@@ -1025,9 +1075,12 @@ func ManageUser(c *gin.Context) {
 		user.Role = common.RoleCommonUser
 	}
 
-	if err := user.Update(false); err != nil {
-		common.ApiError(c, err)
-		return
+	// disable 和 enable 已经在上面单独处理了 DB 更新，其他操作走 Update
+	if req.Action != "disable" && req.Action != "enable" && req.Action != "delete" {
+		if err := user.Update(false); err != nil {
+			common.ApiError(c, err)
+			return
+		}
 	}
 	clearUser := model.User{
 		Role:   user.Role,
@@ -1053,8 +1106,16 @@ func EmailBind(c *gin.Context) {
 	}
 	session := sessions.Default(c)
 	id := session.Get("id")
+	idInt, ok := id.(int)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "无效的会话信息，请重新登录",
+		})
+		return
+	}
 	user := model.User{
-		Id: id.(int),
+		Id: idInt,
 	}
 	err := user.FillUserById()
 	if err != nil {

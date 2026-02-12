@@ -56,7 +56,9 @@ func UniversalVerify(c *gin.Context) {
 		return
 	}
 
-	if user.Status != common.UserStatusEnabled {
+	if model.CheckAndAutoUnban(user) {
+		// 已自动解封
+	} else if user.Status != common.UserStatusEnabled {
 		common.ApiError(c, fmt.Errorf("该用户已被禁用"))
 		return
 	}
@@ -256,7 +258,9 @@ func PasskeyVerifyForSecure(c *gin.Context) {
 		return
 	}
 
-	if user.Status != common.UserStatusEnabled {
+	if model.CheckAndAutoUnban(user) {
+		// 已自动解封
+	} else if user.Status != common.UserStatusEnabled {
 		common.ApiError(c, fmt.Errorf("该用户已被禁用"))
 		return
 	}

@@ -104,13 +104,19 @@ func authHelper(c *gin.Context, minRole int) {
 	}
 
 	// 实时查询用户状态，确保封禁立即生效
-	// 只在 session 中没有 access_token 时才查询（即使用 session 登录的用户）
-	if !useAccessToken && id != nil {
+	// 对 session 用户：从缓存获取最新状态（access_token 用户已从 DB 获取最新数据）
+	var cachedBannedAt, cachedBanDuration int64
+	var resolvedUserId int
+	if id != nil {
 		if idInt, ok := id.(int); ok {
-			userCache, err := model.GetUserCache(idInt)
-			if err == nil && userCache != nil {
-				// 使用实时的用户状态
-				status = userCache.Status
+			resolvedUserId = idInt
+			if !useAccessToken {
+				userCache, err := model.GetUserCache(idInt)
+				if err == nil && userCache != nil {
+					status = userCache.Status
+					cachedBannedAt = userCache.BannedAt
+					cachedBanDuration = userCache.BanDuration
+				}
 			}
 		}
 	}
@@ -125,14 +131,29 @@ func authHelper(c *gin.Context, minRole int) {
 		c.Abort()
 		return
 	}
+
+	// 用户被封禁时，检查定时封禁是否已过期
 	if statusInt == common.UserStatusDisabled {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "用户已被封禁",
-		})
-		c.Abort()
-		return
+		// access_token 用户需要从缓存补充封禁信息
+		if useAccessToken && resolvedUserId > 0 && cachedBanDuration == 0 {
+			userCache, err := model.GetUserCache(resolvedUserId)
+			if err == nil && userCache != nil {
+				cachedBannedAt = userCache.BannedAt
+				cachedBanDuration = userCache.BanDuration
+			}
+		}
+		if resolvedUserId > 0 && model.CheckAndAutoUnbanById(resolvedUserId, cachedBannedAt, cachedBanDuration) {
+			statusInt = common.UserStatusEnabled
+		} else {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "用户已被封禁",
+			})
+			c.Abort()
+			return
+		}
 	}
+
 	roleInt, ok := role.(int)
 	if !ok {
 		c.JSON(http.StatusOK, gin.H{
@@ -311,6 +332,10 @@ func TokenAuth() func(c *gin.Context) {
 			return
 		}
 		userEnabled := userCache.Status == common.UserStatusEnabled
+		if !userEnabled {
+			// 检查定时封禁是否已过期
+			userEnabled = model.CheckAndAutoUnbanById(token.UserId, userCache.BannedAt, userCache.BanDuration)
+		}
 		if !userEnabled {
 			abortWithOpenAiMessage(c, http.StatusForbidden, "用户已被封禁")
 			return

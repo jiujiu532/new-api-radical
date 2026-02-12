@@ -102,7 +102,8 @@ func getDiscordUserInfoByCode(code string) (*DiscordUser, error) {
 func DiscordOAuth(c *gin.Context) {
 	session := sessions.Default(c)
 	state := c.Query("state")
-	if state == "" || session.Get("oauth_state") == nil || state != session.Get("oauth_state").(string) {
+	oauthState, _ := session.Get("oauth_state").(string)
+	if state == "" || oauthState == "" || state != oauthState {
 		c.JSON(http.StatusForbidden, gin.H{
 			"success": false,
 			"message": "state is empty or not same",
@@ -143,7 +144,7 @@ func DiscordOAuth(c *gin.Context) {
 		// 新用户注册 - 使用通用 OAuth 注册处理
 		displayName := discordUser.Name
 		if displayName == "" {
-			displayName = "Discord User"
+			displayName = discordUser.ID // ID (username) 总是有值
 		}
 		
 		oauthId := discordUser.ID
@@ -177,7 +178,10 @@ func DiscordOAuth(c *gin.Context) {
 		user = *result.User
 	}
 
-	if user.Status != common.UserStatusEnabled {
+	// 检查定时封禁是否过期
+	if model.CheckAndAutoUnban(&user) {
+		// 已自动解封，继续登录
+	} else if user.Status != common.UserStatusEnabled {
 		c.JSON(http.StatusOK, gin.H{
 			"message": "用户已被封禁",
 			"success": false,
@@ -213,7 +217,15 @@ func DiscordBind(c *gin.Context) {
 	}
 	session := sessions.Default(c)
 	id := session.Get("id")
-	user.Id = id.(int)
+	idInt, ok := id.(int)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "无效的会话信息，请重新登录",
+		})
+		return
+	}
+	user.Id = idInt
 	err = user.FillUserById()
 	if err != nil {
 		common.ApiError(c, err)

@@ -49,7 +49,7 @@ var WeChatAuthEnabled = false
 var TelegramOAuthEnabled = false
 var TurnstileCheckEnabled = false
 var RegisterEnabled = true
-var InvitationCodeEnabled = false // 是否启用邀请码注册（启用后必须填写邀请码才能注册）
+var InvitationCodeEnabled = false // 是否启用注册码（启用后必须填写注册码才能注册）
 
 var EmailDomainRestrictionEnabled = false // 是否启用邮箱域名限制
 var EmailAliasRestrictionEnabled = false  // 是否启用邮箱别名限制

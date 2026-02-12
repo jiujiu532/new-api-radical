@@ -57,7 +57,15 @@ func LinuxDoBind(c *gin.Context) {
 
 	session := sessions.Default(c)
 	id := session.Get("id")
-	user.Id = id.(int)
+	idInt, ok := id.(int)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "无效的会话信息，请重新登录",
+		})
+		return
+	}
+	user.Id = idInt
 
 	err = user.FillUserById()
 	if err != nil {
@@ -176,7 +184,8 @@ func LinuxdoOAuth(c *gin.Context) {
 	common.SysLog(fmt.Sprintf("LinuxDO OAuth: state=%s, sessionState=%v", state, sessionState))
 	
 	// LinuxDO 会在 state 后面附加额外内容，所以使用 HasPrefix 比较
-	if state == "" || sessionState == nil || !strings.HasPrefix(state, sessionState.(string)) {
+	sessionStateStr, _ := sessionState.(string)
+	if state == "" || sessionState == nil || sessionStateStr == "" || !strings.HasPrefix(state, sessionStateStr) {
 		c.JSON(http.StatusForbidden, gin.H{
 			"success":       false,
 			"message":       "state is empty or not same",
@@ -279,7 +288,10 @@ func LinuxdoOAuth(c *gin.Context) {
 		user = *result.User
 	}
 
-	if user.Status != common.UserStatusEnabled {
+	// 检查定时封禁是否过期
+	if model.CheckAndAutoUnban(&user) {
+		// 已自动解封，继续登录
+	} else if user.Status != common.UserStatusEnabled {
 		c.JSON(http.StatusOK, gin.H{
 			"message": "用户已被封禁",
 			"success": false,

@@ -264,13 +264,30 @@ const LoginForm = () => {
         } else {
           // 检查是否是用户被禁用
           if (data && data.user_disabled) {
+            let banContent;
+            if (data.ban_type === 'temporary' && data.banned_until) {
+              const unbanDate = new Date(data.banned_until * 1000);
+              banContent = (
+                <div>
+                  <p>{t('您的账户已被临时封禁')}</p>
+                  <p style={{ marginTop: 8, fontWeight: 'bold', color: '#fa8c16' }}>
+                    {t('解封时间')}: {unbanDate.toLocaleString()}
+                  </p>
+                  <p style={{ marginTop: 4, fontSize: 13, color: '#666' }}>
+                    {t('如需提前解封，请前往小黑屋使用解封码')}
+                  </p>
+                </div>
+              );
+            } else {
+              banContent = (
+                <div>
+                  <p>{t('您的账户已被永久封禁，如需解封请前往小黑屋使用解封码')}</p>
+                </div>
+              );
+            }
             Modal.warning({
               title: t('账户已被封禁'),
-              content: (
-                <div>
-                  <p>{t('您的账户已被封禁，如需解封请前往小黑屋使用解封码')}</p>
-                </div>
-              ),
+              content: banContent,
               okText: t('前往小黑屋'),
               cancelText: t('取消'),
               onOk: () => navigate('/blacklist'),
