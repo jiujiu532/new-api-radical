@@ -36,7 +36,8 @@ type ModelHealthEvent struct {
 	CreatedAt           int64
 	IsError             bool
 	ResponseBytes       int
-	CompletionTokens    int
+	CompletionTokens    int // 仅输出 token，用于健康判断
+	TotalTokens         int // 输入+输出 token，用于 Token 统计显示
 	AssistantChars      int
 	SuccessIsQualified  bool
 	HasMetricsAvailable bool
@@ -90,7 +91,7 @@ func UpsertModelHealthSlice5m(ctx context.Context, db *gorm.DB, event *ModelHeal
 		HasSuccessQualified:      event.SuccessIsQualified,
 		MaxResponseBytes:         maxInt(0, event.ResponseBytes),
 		MaxCompletionTokens:      maxInt(0, event.CompletionTokens),
-		SumCompletionTokens:      maxInt(0, event.CompletionTokens),
+		SumCompletionTokens:      maxInt(0, event.TotalTokens),
 		MaxAssistantChars:        maxInt(0, event.AssistantChars),
 	}
 

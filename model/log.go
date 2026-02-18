@@ -207,7 +207,8 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 		CreatedAt:        log.CreatedAt,
 		IsError:          false,
 		ResponseBytes:    responseBytes,
-		CompletionTokens: params.PromptTokens + params.CompletionTokens,
+		CompletionTokens: params.CompletionTokens,
+		TotalTokens:      params.PromptTokens + params.CompletionTokens,
 		AssistantChars:   assistantChars,
 	})
 
