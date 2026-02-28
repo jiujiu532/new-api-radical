@@ -273,6 +273,7 @@ func migrateDB() error {
 		&HighActiveTaskRecord{},
 		&InvitationCode{},
 		&InvitationCodeUsageLog{},
+		&InvitationCodeBatch{},
 	)
 	if err != nil {
 		return err

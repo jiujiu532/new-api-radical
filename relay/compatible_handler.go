@@ -214,7 +214,45 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 	} else {
 		postConsumeQuota(c, info, usage.(*dto.Usage))
 	}
+
+	// 检测空回复并记录错误日志
+	checkEmptyResponse(c, info, usage.(*dto.Usage))
+
 	return nil
+}
+
+// checkEmptyResponse 检测空回复（completion_tokens == 0）并记录错误日志
+func checkEmptyResponse(c *gin.Context, info *relaycommon.RelayInfo, usage *dto.Usage) {
+	if usage == nil || usage.CompletionTokens > 0 {
+		return
+	}
+	if !constant.ErrorLogEnabled {
+		return
+	}
+
+	userId := c.GetInt("id")
+	tokenName := c.GetString("token_name")
+	modelName := c.GetString("original_model")
+	tokenId := c.GetInt("token_id")
+	userGroup := c.GetString("group")
+	channelId := c.GetInt("channel_id")
+	useTimeSeconds := int(time.Now().Unix() - info.StartTime.Unix())
+
+	content := "空回复: 模型未返回任何内容 (completion_tokens=0)"
+
+	other := make(map[string]interface{})
+	if c.Request != nil && c.Request.URL != nil {
+		other["request_path"] = c.Request.URL.Path
+	}
+	other["channel_id"] = channelId
+	other["channel_name"] = c.GetString("channel_name")
+	other["channel_type"] = c.GetInt("channel_type")
+	other["prompt_tokens"] = usage.PromptTokens
+	other["empty_response"] = true
+
+	logger.LogWarn(c, fmt.Sprintf("empty response detected: model=%s, prompt_tokens=%d, completion_tokens=%d", modelName, usage.PromptTokens, usage.CompletionTokens))
+
+	model.RecordErrorLog(c, userId, channelId, modelName, tokenName, content, tokenId, useTimeSeconds, info.IsStream, userGroup, other)
 }
 
 func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.Usage, extraContent ...string) {

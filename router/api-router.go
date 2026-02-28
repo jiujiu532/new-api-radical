@@ -356,6 +356,13 @@ func SetApiRouter(router *gin.Engine) {
 			invitationCodeRoute.POST("/batch_delete", controller.BatchDeleteInvitationCodes) // 批量删除
 			invitationCodeRoute.GET("/export", controller.ExportInvitationCodes)       // 导出码值
 			invitationCodeRoute.DELETE("/delete_all_by_type", controller.DeleteAllInvitationCodesByType) // 按类型删除所有
+
+			// 批次管理
+			invitationCodeRoute.POST("/batch/create", controller.CreateBatchAndGenerate) // 创建批次并生成码
+			invitationCodeRoute.GET("/batch/", controller.GetBatches)                   // 批次列表
+			invitationCodeRoute.GET("/batch/:id", controller.GetBatchDetail)            // 批次详情
+			invitationCodeRoute.GET("/batch/:id/export", controller.ExportBatchCodes)   // 导出批次码
+			invitationCodeRoute.DELETE("/batch/:id", controller.DeleteBatch)            // 删除批次
 		}
 
 		// 公开的注册码验证接口（用于注册页面预检）

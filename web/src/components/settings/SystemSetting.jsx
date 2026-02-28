@@ -50,6 +50,7 @@ const SystemSetting = () => {
     PasswordRegisterEnabled: '',
     EmailVerificationEnabled: '',
     GitHubOAuthEnabled: '',
+    ErrorLogEnabled: '',
     GitHubClientId: '',
     GitHubClientSecret: '',
     'discord.enabled': '',
@@ -182,6 +183,8 @@ const SystemSetting = () => {
           case 'EmailAliasRestrictionEnabled':
           case 'SMTPSSLEnabled':
           case 'LinuxDOOAuthEnabled':
+          case 'InvitationCodeEnabled':
+          case 'ErrorLogEnabled':
           case 'discord.enabled':
           case 'oidc.enabled':
           case 'passkey.enabled':
@@ -1036,6 +1039,15 @@ const SystemSetting = () => {
                         }
                       >
                         {t('强制使用注册码注册')}
+                      </Form.Checkbox>
+                      <Form.Checkbox
+                        field='ErrorLogEnabled'
+                        noLabel
+                        onChange={(e) =>
+                          handleCheckboxChange('ErrorLogEnabled', e)
+                        }
+                      >
+                        {t('启用错误日志记录')}
                       </Form.Checkbox>
                     </Col>
                     <Col xs={24} sm={24} md={12} lg={12} xl={12}>

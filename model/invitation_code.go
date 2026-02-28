@@ -21,6 +21,7 @@ type InvitationCode struct {
 	Status    int    `json:"status" gorm:"default:1;index"`                           // 状态: 1=有效, 2=已用完, 3=已禁用
 	Note      string `json:"note" gorm:"type:varchar(255)"`                           // 备注
 	CreatedBy int    `json:"created_by" gorm:"default:0"`                             // 创建者用户ID
+	BatchId   int    `json:"batch_id" gorm:"default:0;index"`                         // 所属批次ID
 	CreatedAt int64  `json:"created_at" gorm:"bigint"`                                // 创建时间
 	UpdatedAt int64  `json:"updated_at" gorm:"bigint"`                                // 更新时间
 	ExpiredAt int64  `json:"expired_at" gorm:"bigint;default:0"`                      // 过期时间，0表示永不过期

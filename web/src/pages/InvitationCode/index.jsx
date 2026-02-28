@@ -36,6 +36,9 @@ import {
     Row,
     Col,
     Dropdown,
+    Tabs,
+    TabPane,
+    Collapsible,
 } from '@douyinfe/semi-ui';
 import {
     IconPlus,
@@ -46,6 +49,8 @@ import {
     IconSearch,
     IconTickCircle,
     IconClock,
+    IconChevronDown,
+    IconChevronUp,
 } from '@douyinfe/semi-icons';
 import { API, showError, showSuccess, copy } from '@/helpers';
 import dayjs from 'dayjs';
@@ -83,6 +88,9 @@ const InvitationCode = () => {
     const [filterStatus, setFilterStatus] = useState(0);
     const [selectedRowKeys, setSelectedRowKeys] = useState([]);
 
+    // 当前标签页
+    const [activeTab, setActiveTab] = useState('codes');
+
     // 生成弹窗
     const [generateVisible, setGenerateVisible] = useState(false);
     const [generateForm, setGenerateForm] = useState({
@@ -91,7 +99,17 @@ const InvitationCode = () => {
         max_uses: 1,
         note: '',
         expired_at: null,
+        batch_name: '',
     });
+
+    // 批次相关状态
+    const [batches, setBatches] = useState([]);
+    const [batchLoading, setBatchLoading] = useState(false);
+    const [batchTotal, setBatchTotal] = useState(0);
+    const [batchPage, setBatchPage] = useState(1);
+    const [batchFilterType, setBatchFilterType] = useState(0);
+    const [expandedBatchId, setExpandedBatchId] = useState(null);
+    const [batchCodes, setBatchCodes] = useState({});
 
     // 使用记录弹窗
     const [usageLogsVisible, setUsageLogsVisible] = useState(false);
@@ -165,10 +183,115 @@ const InvitationCode = () => {
         fetchStats();
     }, []);
 
+    // 切换到批次tab时加载批次
+    useEffect(() => {
+        if (activeTab === 'batches') {
+            loadBatches();
+        }
+    }, [activeTab, batchPage, batchFilterType]);
+
     // 给外部调用的刷新函数
     const fetchCodes = () => {
         loadCodes();
         fetchStats();
+    };
+
+    // ========== 批次相关函数 ==========
+
+    const loadBatches = async () => {
+        setBatchLoading(true);
+        try {
+            const res = await API.get('/api/invitation_code/batch/', {
+                params: {
+                    type: batchFilterType || undefined,
+                    page: batchPage,
+                    page_size: 20,
+                },
+            });
+            if (res.data.success) {
+                setBatches(res.data.data.list || []);
+                setBatchTotal(res.data.data.total || 0);
+            } else {
+                showError(res.data.message);
+            }
+        } catch (err) {
+            showError('获取批次列表失败');
+        }
+        setBatchLoading(false);
+    };
+
+    const loadBatchCodes = async (batchId) => {
+        try {
+            const res = await API.get(`/api/invitation_code/batch/${batchId}`, {
+                params: { page: 1, page_size: 1000 },
+            });
+            if (res.data.success) {
+                setBatchCodes(prev => ({ ...prev, [batchId]: res.data.data.codes || [] }));
+            }
+        } catch (err) {
+            showError('获取批次码列表失败');
+        }
+    };
+
+    const handleDeleteBatch = async (id) => {
+        try {
+            const res = await API.delete(`/api/invitation_code/batch/${id}`);
+            if (res.data.success) {
+                showSuccess('删除成功');
+                loadBatches();
+            } else {
+                showError(res.data.message);
+            }
+        } catch (err) {
+            showError('删除失败');
+        }
+    };
+
+    const handleCopyBatchCodes = async (batchId) => {
+        try {
+            const res = await API.get(`/api/invitation_code/batch/${batchId}/export`);
+            if (res.data.success && res.data.data) {
+                const text = res.data.data.join('\n');
+                await copy(text);
+                showSuccess(`已复制 ${res.data.count} 个码到剪贴板`);
+            } else {
+                showError('导出失败');
+            }
+        } catch (err) {
+            showError('导出失败');
+        }
+    };
+
+    const handleDownloadBatchCodes = async (batch) => {
+        try {
+            const res = await API.get(`/api/invitation_code/batch/${batch.id}/export`);
+            if (res.data.success && res.data.data) {
+                const typeName = batch.type === 1 ? '注册码' : '解封码';
+                const fileName = `${typeName}_${batch.name || '批次'}_${dayjs.unix(batch.created_at).format('YYYYMMDD_HHmm')}.txt`;
+                const content = res.data.data.join('\n');
+                const blob = new Blob([content], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = fileName;
+                a.click();
+                URL.revokeObjectURL(url);
+                showSuccess(`已下载 ${res.data.count} 个码`);
+            }
+        } catch (err) {
+            showError('下载失败');
+        }
+    };
+
+    const toggleBatchExpand = (batchId) => {
+        if (expandedBatchId === batchId) {
+            setExpandedBatchId(null);
+        } else {
+            setExpandedBatchId(batchId);
+            if (!batchCodes[batchId]) {
+                loadBatchCodes(batchId);
+            }
+        }
     };
 
     // 批量生成注册码
@@ -190,13 +313,17 @@ const InvitationCode = () => {
             }
 
             const payload = {
-                ...generateForm,
+                type: generateForm.type,
+                count: generateForm.count,
+                max_uses: generateForm.max_uses,
+                note: generateForm.note,
                 expired_at: expiredAtTimestamp,
+                name: generateForm.batch_name || generateForm.note || `批次 ${dayjs().format('YYYY-MM-DD HH:mm')}`,
             };
-            const res = await API.post('/api/invitation_code/generate', payload);
+            const res = await API.post('/api/invitation_code/batch/create', payload);
             if (res.data.success) {
                 const typeName = generateForm.type === 1 ? '注册码' : '解封码';
-                showSuccess(`成功生成 ${res.data.data.length} 个${typeName}`);
+                showSuccess(`成功生成 ${res.data.data.codes.length} 个${typeName}`);
                 setGenerateVisible(false);
                 setGenerateForm({
                     type: 1,
@@ -204,9 +331,13 @@ const InvitationCode = () => {
                     max_uses: 1,
                     note: '',
                     expired_at: null,
+                    batch_name: '',
                 });
                 fetchCodes();
                 fetchStats();
+                if (activeTab === 'batches') {
+                    loadBatches();
+                }
             } else {
                 showError(res.data.message);
             }
@@ -481,6 +612,133 @@ const InvitationCode = () => {
         },
     ];
 
+    // 批次记录渲染
+    const renderBatchTab = () => (
+        <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
+            {/* 批次操作栏 */}
+            <Card style={{ marginBottom: 12, flexShrink: 0 }} bodyStyle={{ padding: '12px' }}>
+                <Space>
+                    <Button icon={<IconPlus />} type="primary" onClick={() => setGenerateVisible(true)}>
+                        批量生成
+                    </Button>
+                    <Button icon={<IconRefresh />} onClick={loadBatches}>
+                        刷新
+                    </Button>
+                    <Select
+                        placeholder="类型筛选"
+                        value={batchFilterType}
+                        onChange={(v) => { setBatchFilterType(v); setBatchPage(1); }}
+                        style={{ width: 120 }}
+                    >
+                        <Select.Option value={0}>全部类型</Select.Option>
+                        <Select.Option value={1}>注册码</Select.Option>
+                        <Select.Option value={2}>解封码</Select.Option>
+                    </Select>
+                </Space>
+            </Card>
+
+            {/* 批次列表 */}
+            {batchLoading ? (
+                <Card><Text type="tertiary">加载中...</Text></Card>
+            ) : batches.length === 0 ? (
+                <Card><Text type="tertiary" style={{ display: 'block', textAlign: 'center', padding: 40 }}>暂无生成记录，点击"批量生成"创建第一个批次</Text></Card>
+            ) : (
+                <div style={{ flex: 1, overflow: 'auto' }}>
+                    {batches.map(batch => (
+                        <Card key={batch.id} style={{ marginBottom: 8 }} bodyStyle={{ padding: '12px 16px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <div style={{ flex: 1 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                                        <Text strong style={{ fontSize: 15 }}>{batch.name || '未命名批次'}</Text>
+                                        <Tag color={batch.type === 1 ? 'green' : 'blue'} size="small">
+                                            {batch.type === 1 ? '注册码' : '解封码'}
+                                        </Tag>
+                                        <Tag color="grey" size="small">{batch.count} 个</Tag>
+                                        <Tag color={batch.used_count > 0 ? 'orange' : 'green'} size="small">
+                                            已使用 {batch.used_count}/{batch.count}
+                                        </Tag>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: 16 }}>
+                                        <Text type="tertiary" size="small">
+                                            📅 {dayjs.unix(batch.created_at).format('YYYY-MM-DD HH:mm')}
+                                        </Text>
+                                        <Text type="tertiary" size="small">
+                                            {batch.expired_at > 0
+                                                ? `⏰ 过期: ${dayjs.unix(batch.expired_at).format('YYYY-MM-DD HH:mm')}`
+                                                : '♾️ 永不过期'}
+                                        </Text>
+                                        {batch.max_uses !== 1 && (
+                                            <Text type="tertiary" size="small">
+                                                每码可用 {batch.max_uses === -1 ? '无限' : batch.max_uses} 次
+                                            </Text>
+                                        )}
+                                    </div>
+                                </div>
+                                <Space>
+                                    <Tooltip content="复制码到剪贴板">
+                                        <Button icon={<IconCopy />} size="small" onClick={() => handleCopyBatchCodes(batch.id)} />
+                                    </Tooltip>
+                                    <Tooltip content="下载 TXT">
+                                        <Button icon={<IconDownload />} size="small" onClick={() => handleDownloadBatchCodes(batch)} />
+                                    </Tooltip>
+                                    <Tooltip content={expandedBatchId === batch.id ? '收起' : '展开码列表'}>
+                                        <Button
+                                            icon={expandedBatchId === batch.id ? <IconChevronUp /> : <IconChevronDown />}
+                                            size="small"
+                                            onClick={() => toggleBatchExpand(batch.id)}
+                                        />
+                                    </Tooltip>
+                                    <Popconfirm
+                                        title="确定删除此批次记录？（不会删除已生成的码）"
+                                        onConfirm={() => handleDeleteBatch(batch.id)}
+                                    >
+                                        <Button icon={<IconDelete />} size="small" type="danger" />
+                                    </Popconfirm>
+                                </Space>
+                            </div>
+                            {expandedBatchId === batch.id && (
+                                <div style={{ marginTop: 8, padding: '8px 0', borderTop: '1px solid var(--semi-color-border)' }}>
+                                    {batchCodes[batch.id] ? (
+                                        batchCodes[batch.id].length > 0 ? (
+                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                                                {batchCodes[batch.id].map((code, idx) => (
+                                                    <Tag
+                                                        key={idx}
+                                                        color={code.used_count > 0 ? 'grey' : 'green'}
+                                                        size="small"
+                                                        style={{ fontFamily: 'monospace', cursor: 'pointer' }}
+                                                        onClick={() => { copy(code.code); showSuccess('已复制'); }}
+                                                    >
+                                                        {code.code}
+                                                        {code.used_count > 0 && ' ✓'}
+                                                    </Tag>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <Text type="tertiary">此批次暂无码</Text>
+                                        )
+                                    ) : (
+                                        <Text type="tertiary">加载中...</Text>
+                                    )}
+                                </div>
+                            )}
+                        </Card>
+                    ))}
+                    {/* 批次分页 */}
+                    {batchTotal > 20 && (
+                        <div style={{ display: 'flex', justifyContent: 'center', marginTop: 12 }}>
+                            <Space>
+                                <Button disabled={batchPage <= 1} onClick={() => setBatchPage(batchPage - 1)}>上一页</Button>
+                                <Text type="tertiary">第 {batchPage} 页 / 共 {Math.ceil(batchTotal / 20)} 页</Text>
+                                <Button disabled={batchPage >= Math.ceil(batchTotal / 20)} onClick={() => setBatchPage(batchPage + 1)}>下一页</Button>
+                            </Space>
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+
     return (
         <div style={{
             marginTop: 60,
@@ -522,184 +780,194 @@ const InvitationCode = () => {
                 </Col>
             </Row>
 
-            {/* 操作栏 */}
-            <Card style={{ marginBottom: 12, flexShrink: 0 }} bodyStyle={{ padding: '12px' }}>
-                <Space>
-                    <Button
-                        icon={<IconPlus />}
-                        type="primary"
-                        onClick={() => setGenerateVisible(true)}
-                    >
-                        批量生成
-                    </Button>
-                    <Button icon={<IconRefresh />} onClick={fetchCodes}>
-                        刷新
-                    </Button>
-                    <Button icon={<IconDownload />} onClick={() => setExportVisible(true)}>
-                        导出
-                    </Button>
-                    {selectedRowKeys.length > 0 && (
-                        <Popconfirm
-                            title={`确定删除选中的 ${selectedRowKeys.length} 个码？`}
-                            onConfirm={handleBatchDelete}
-                        >
-                            <Button icon={<IconDelete />} type="danger">
-                                批量删除 ({selectedRowKeys.length})
-                            </Button>
-                        </Popconfirm>
-                    )}
-                    <Select
-                        placeholder="类型筛选"
-                        value={filterType}
-                        onChange={setFilterType}
-                        style={{ width: 120 }}
-                    >
-                        <Select.Option value={0}>全部类型</Select.Option>
-                        <Select.Option value={1}>注册码</Select.Option>
-                        <Select.Option value={2}>解封码</Select.Option>
-                    </Select>
-                    <Select
-                        placeholder="状态筛选"
-                        value={filterStatus}
-                        onChange={setFilterStatus}
-                        style={{ width: 120 }}
-                    >
-                        <Select.Option value={0}>全部状态</Select.Option>
-                        <Select.Option value={1}>有效</Select.Option>
-                        <Select.Option value={2}>已用完</Select.Option>
-                        <Select.Option value={4}>已过期</Select.Option>
-                    </Select>
-                    <Dropdown
-                        trigger="click"
-                        position="bottomLeft"
-                        render={
-                            <Dropdown.Menu>
-                                <Dropdown.Item onClick={() => {
-                                    Modal.confirm({
-                                        title: '确认删除',
-                                        content: '确定删除所有注册码？此操作不可撤销！',
-                                        onOk: () => handleDeleteAllByType(1, 0),
-                                    });
-                                }}>删除所有注册码</Dropdown.Item>
-                                <Dropdown.Item onClick={() => {
-                                    Modal.confirm({
-                                        title: '确认删除',
-                                        content: '确定删除所有有效注册码？此操作不可撤销！',
-                                        onOk: () => handleDeleteAllByType(1, 1),
-                                    });
-                                }}>删除所有有效注册码</Dropdown.Item>
-                                <Dropdown.Item onClick={() => {
-                                    Modal.confirm({
-                                        title: '确认删除',
-                                        content: '确定删除所有已过期注册码？此操作不可撤销！',
-                                        onOk: () => handleDeleteAllByType(1, 4),
-                                    });
-                                }}>删除所有已过期注册码</Dropdown.Item>
-                                <Dropdown.Item onClick={() => {
-                                    Modal.confirm({
-                                        title: '确认删除',
-                                        content: '确定删除所有已用完注册码？此操作不可撤销！',
-                                        onOk: () => handleDeleteAllByType(1, 2),
-                                    });
-                                }}>删除所有已用完注册码</Dropdown.Item>
-                            </Dropdown.Menu>
-                        }
-                    >
-                        <Button type="danger">删除注册码</Button>
-                    </Dropdown>
-                    <Dropdown
-                        trigger="click"
-                        position="bottomLeft"
-                        render={
-                            <Dropdown.Menu>
-                                <Dropdown.Item onClick={() => {
-                                    Modal.confirm({
-                                        title: '确认删除',
-                                        content: '确定删除所有解封码？此操作不可撤销！',
-                                        onOk: () => handleDeleteAllByType(2, 0),
-                                    });
-                                }}>删除所有解封码</Dropdown.Item>
-                                <Dropdown.Item onClick={() => {
-                                    Modal.confirm({
-                                        title: '确认删除',
-                                        content: '确定删除所有有效解封码？此操作不可撤销！',
-                                        onOk: () => handleDeleteAllByType(2, 1),
-                                    });
-                                }}>删除所有有效解封码</Dropdown.Item>
-                                <Dropdown.Item onClick={() => {
-                                    Modal.confirm({
-                                        title: '确认删除',
-                                        content: '确定删除所有已过期解封码？此操作不可撤销！',
-                                        onOk: () => handleDeleteAllByType(2, 4),
-                                    });
-                                }}>删除所有已过期解封码</Dropdown.Item>
-                                <Dropdown.Item onClick={() => {
-                                    Modal.confirm({
-                                        title: '确认删除',
-                                        content: '确定删除所有已用完解封码？此操作不可撤销！',
-                                        onOk: () => handleDeleteAllByType(2, 2),
-                                    });
-                                }}>删除所有已用完解封码</Dropdown.Item>
-                            </Dropdown.Menu>
-                        }
-                    >
-                        <Button type="danger">删除解封码</Button>
-                    </Dropdown>
-                </Space>
-            </Card>
+            {/* Tabs */}
+            <Tabs activeKey={activeTab} onChange={setActiveTab}>
+                <TabPane tab="注册码列表" itemKey="codes">
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+                        {/* 操作栏 */}
+                        <Card style={{ marginBottom: 12, flexShrink: 0 }} bodyStyle={{ padding: '12px' }}>
+                            <Space>
+                                <Button
+                                    icon={<IconPlus />}
+                                    type="primary"
+                                    onClick={() => setGenerateVisible(true)}
+                                >
+                                    批量生成
+                                </Button>
+                                <Button icon={<IconRefresh />} onClick={fetchCodes}>
+                                    刷新
+                                </Button>
+                                <Button icon={<IconDownload />} onClick={() => setExportVisible(true)}>
+                                    导出
+                                </Button>
+                                {selectedRowKeys.length > 0 && (
+                                    <Popconfirm
+                                        title={`确定删除选中的 ${selectedRowKeys.length} 个码？`}
+                                        onConfirm={handleBatchDelete}
+                                    >
+                                        <Button icon={<IconDelete />} type="danger">
+                                            批量删除 ({selectedRowKeys.length})
+                                        </Button>
+                                    </Popconfirm>
+                                )}
+                                <Select
+                                    placeholder="类型筛选"
+                                    value={filterType}
+                                    onChange={setFilterType}
+                                    style={{ width: 120 }}
+                                >
+                                    <Select.Option value={0}>全部类型</Select.Option>
+                                    <Select.Option value={1}>注册码</Select.Option>
+                                    <Select.Option value={2}>解封码</Select.Option>
+                                </Select>
+                                <Select
+                                    placeholder="状态筛选"
+                                    value={filterStatus}
+                                    onChange={setFilterStatus}
+                                    style={{ width: 120 }}
+                                >
+                                    <Select.Option value={0}>全部状态</Select.Option>
+                                    <Select.Option value={1}>有效</Select.Option>
+                                    <Select.Option value={2}>已用完</Select.Option>
+                                    <Select.Option value={4}>已过期</Select.Option>
+                                </Select>
+                                <Dropdown
+                                    trigger="click"
+                                    position="bottomLeft"
+                                    render={
+                                        <Dropdown.Menu>
+                                            <Dropdown.Item onClick={() => {
+                                                Modal.confirm({
+                                                    title: '确认删除',
+                                                    content: '确定删除所有注册码？此操作不可撤销！',
+                                                    onOk: () => handleDeleteAllByType(1, 0),
+                                                });
+                                            }}>删除所有注册码</Dropdown.Item>
+                                            <Dropdown.Item onClick={() => {
+                                                Modal.confirm({
+                                                    title: '确认删除',
+                                                    content: '确定删除所有有效注册码？此操作不可撤销！',
+                                                    onOk: () => handleDeleteAllByType(1, 1),
+                                                });
+                                            }}>删除所有有效注册码</Dropdown.Item>
+                                            <Dropdown.Item onClick={() => {
+                                                Modal.confirm({
+                                                    title: '确认删除',
+                                                    content: '确定删除所有已过期注册码？此操作不可撤销！',
+                                                    onOk: () => handleDeleteAllByType(1, 4),
+                                                });
+                                            }}>删除所有已过期注册码</Dropdown.Item>
+                                            <Dropdown.Item onClick={() => {
+                                                Modal.confirm({
+                                                    title: '确认删除',
+                                                    content: '确定删除所有已用完注册码？此操作不可撤销！',
+                                                    onOk: () => handleDeleteAllByType(1, 2),
+                                                });
+                                            }}>删除所有已用完注册码</Dropdown.Item>
+                                        </Dropdown.Menu>
+                                    }
+                                >
+                                    <Button type="danger">删除注册码</Button>
+                                </Dropdown>
+                                <Dropdown
+                                    trigger="click"
+                                    position="bottomLeft"
+                                    render={
+                                        <Dropdown.Menu>
+                                            <Dropdown.Item onClick={() => {
+                                                Modal.confirm({
+                                                    title: '确认删除',
+                                                    content: '确定删除所有解封码？此操作不可撤销！',
+                                                    onOk: () => handleDeleteAllByType(2, 0),
+                                                });
+                                            }}>删除所有解封码</Dropdown.Item>
+                                            <Dropdown.Item onClick={() => {
+                                                Modal.confirm({
+                                                    title: '确认删除',
+                                                    content: '确定删除所有有效解封码？此操作不可撤销！',
+                                                    onOk: () => handleDeleteAllByType(2, 1),
+                                                });
+                                            }}>删除所有有效解封码</Dropdown.Item>
+                                            <Dropdown.Item onClick={() => {
+                                                Modal.confirm({
+                                                    title: '确认删除',
+                                                    content: '确定删除所有已过期解封码？此操作不可撤销！',
+                                                    onOk: () => handleDeleteAllByType(2, 4),
+                                                });
+                                            }}>删除所有已过期解封码</Dropdown.Item>
+                                            <Dropdown.Item onClick={() => {
+                                                Modal.confirm({
+                                                    title: '确认删除',
+                                                    content: '确定删除所有已用完解封码？此操作不可撤销！',
+                                                    onOk: () => handleDeleteAllByType(2, 2),
+                                                });
+                                            }}>删除所有已用完解封码</Dropdown.Item>
+                                        </Dropdown.Menu>
+                                    }
+                                >
+                                    <Button type="danger">删除解封码</Button>
+                                </Dropdown>
+                            </Space>
+                        </Card>
 
-            {/* 注册码表格 */}
-            <Card bodyStyle={{ padding: '12px', height: '100%', display: 'flex', flexDirection: 'column' }} style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
-                <Table
-                    columns={columns}
-                    dataSource={codes}
-                    rowKey="id"
-                    loading={loading}
-                    size="small"
-                    rowSelection={{
-                        selectedRowKeys,
-                        onChange: setSelectedRowKeys,
-                    }}
-                    pagination={false}
-                    scroll={{ x: 1200, y: 'calc(100vh - 420px)' }}
-                />
-                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12, alignItems: 'center', gap: 16 }}>
-                    <Text type="tertiary">显示第 {(page - 1) * pageSize + 1} 条-第 {Math.min(page * pageSize, total)} 条，共 {total} 条</Text>
-                    <Space>
-                        <Button
-                            disabled={page <= 1}
-                            onClick={() => setPage(page - 1)}
-                        >
-                            上一页
-                        </Button>
-                        {Array.from({ length: Math.ceil(total / pageSize) }, (_, i) => i + 1).slice(0, 10).map((p) => (
-                            <Button
-                                key={p}
-                                type={p === page ? 'primary' : 'tertiary'}
-                                onClick={() => setPage(p)}
-                            >
-                                {p}
-                            </Button>
-                        ))}
-                        <Button
-                            disabled={page >= Math.ceil(total / pageSize)}
-                            onClick={() => setPage(page + 1)}
-                        >
-                            下一页
-                        </Button>
-                        <Select
-                            value={pageSize}
-                            onChange={(v) => { setPageSize(v); setPage(1); }}
-                            style={{ width: 120 }}
-                        >
-                            <Select.Option value={10}>每页10条</Select.Option>
-                            <Select.Option value={15}>每页15条</Select.Option>
-                            <Select.Option value={20}>每页20条</Select.Option>
-                            <Select.Option value={50}>每页50条</Select.Option>
-                        </Select>
-                    </Space>
-                </div>
-            </Card>
+                        {/* 注册码表格 */}
+                        <Card bodyStyle={{ padding: '12px', height: '100%', display: 'flex', flexDirection: 'column' }} style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+                            <Table
+                                columns={columns}
+                                dataSource={codes}
+                                rowKey="id"
+                                loading={loading}
+                                size="small"
+                                rowSelection={{
+                                    selectedRowKeys,
+                                    onChange: setSelectedRowKeys,
+                                }}
+                                pagination={false}
+                                scroll={{ x: 1200, y: 'calc(100vh - 420px)' }}
+                            />
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12, alignItems: 'center', gap: 16 }}>
+                                <Text type="tertiary">显示第 {(page - 1) * pageSize + 1} 条-第 {Math.min(page * pageSize, total)} 条，共 {total} 条</Text>
+                                <Space>
+                                    <Button
+                                        disabled={page <= 1}
+                                        onClick={() => setPage(page - 1)}
+                                    >
+                                        上一页
+                                    </Button>
+                                    {Array.from({ length: Math.ceil(total / pageSize) }, (_, i) => i + 1).slice(0, 10).map((p) => (
+                                        <Button
+                                            key={p}
+                                            type={p === page ? 'primary' : 'tertiary'}
+                                            onClick={() => setPage(p)}
+                                        >
+                                            {p}
+                                        </Button>
+                                    ))}
+                                    <Button
+                                        disabled={page >= Math.ceil(total / pageSize)}
+                                        onClick={() => setPage(page + 1)}
+                                    >
+                                        下一页
+                                    </Button>
+                                    <Select
+                                        value={pageSize}
+                                        onChange={(v) => { setPageSize(v); setPage(1); }}
+                                        style={{ width: 120 }}
+                                    >
+                                        <Select.Option value={10}>每页10条</Select.Option>
+                                        <Select.Option value={15}>每页15条</Select.Option>
+                                        <Select.Option value={20}>每页20条</Select.Option>
+                                        <Select.Option value={50}>每页50条</Select.Option>
+                                    </Select>
+                                </Space>
+                            </div>
+                        </Card>
+                    </div>
+                </TabPane>
+                <TabPane tab="生成记录" itemKey="batches">
+                    {renderBatchTab()}
+                </TabPane>
+            </Tabs>
 
             {/* 批量生成弹窗 */}
             <Modal
@@ -735,6 +1003,13 @@ const InvitationCode = () => {
                         min={-1}
                         onChange={(v) => setGenerateForm({ ...generateForm, max_uses: v })}
                         extraText="-1 表示无限次"
+                    />
+                    <Form.Input
+                        field="batch_name"
+                        label="批次名称"
+                        initValue={generateForm.batch_name}
+                        onChange={(v) => setGenerateForm({ ...generateForm, batch_name: v })}
+                        placeholder="可选，如：2026年2月活动推广"
                     />
                     <Form.Input
                         field="note"

@@ -141,5 +141,9 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 	} else {
 		postConsumeQuota(c, info, usage.(*dto.Usage))
 	}
+
+	// 检测空回复并记录错误日志
+	checkEmptyResponse(c, info, usage.(*dto.Usage))
+
 	return nil
 }
