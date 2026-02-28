@@ -70,7 +70,7 @@ function StatCard({ icon, title, value, bgGradient }) {
         className='absolute -right-3 -bottom-3 w-16 h-16 rounded-full opacity-15'
         style={{ backgroundColor: 'rgba(255,255,255,0.4)' }}
       />
-      
+
       <div className='flex items-center gap-3 relative z-10'>
         <div
           className='w-10 h-10 rounded-xl flex items-center justify-center'
@@ -118,8 +118,8 @@ export default function ModelHealthHourlyPage() {
     let successRequests = 0;
 
     for (const r of rows) {
-      totalSuccess += Number(r.success_slices) || 0;
-      totalSlices += Number(r.total_slices) || 0;
+      totalSuccess += Number(r.success_requests) || 0;
+      totalSlices += Number(r.total_requests) || 0;
       const rate = Number(r.success_rate) || 0;
       if (rate < minRate) minRate = rate;
       if (rate > maxRate) maxRate = rate;
@@ -138,8 +138,8 @@ export default function ModelHealthHourlyPage() {
       ts: r.hour_start_ts,
       time: timestamp2string(r.hour_start_ts),
       rate: Number(r.success_rate) || 0,
-      success: Number(r.success_slices) || 0,
-      total: Number(r.total_slices) || 0,
+      success: Number(r.success_requests) || 0,
+      total: Number(r.total_requests) || 0,
       totalRequests: Number(r.total_requests) || 0,
       errorRequests: Number(r.error_requests) || 0,
       successRequests: Number(r.success_requests) || 0,
@@ -177,7 +177,7 @@ export default function ModelHealthHourlyPage() {
               value: (d) => formatRate(Number(d?.rate) || 0),
             },
             {
-              key: '成功/总计(时间片)',
+              key: '成功/总计(请求)',
               value: (d) => `${d?.success || 0}/${d?.total || 0}`,
             },
             {
@@ -294,17 +294,7 @@ export default function ModelHealthHourlyPage() {
           <span className='font-medium'>{v || 0}</span>
         ),
       },
-      {
-        title: '时间片(成功/总)',
-        dataIndex: 'success_slices',
-        key: 'slices',
-        width: 120,
-        render: (v, record) => (
-          <span className='text-gray-500'>
-            {v || 0}/{record.total_slices || 0}
-          </span>
-        ),
-      },
+
     ],
     [],
   );
@@ -550,19 +540,7 @@ export default function ModelHealthHourlyPage() {
                 bgGradient='linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)'
               />
             </div>
-            <div className='grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 mb-8'>
-              <StatCard
-                icon={<IconTickCircle className='text-white' size='large' />}
-                title='成功时间片'
-                value={stats.totalSuccess}
-                bgGradient='linear-gradient(135deg, #84cc16 0%, #4d7c0f 100%)'
-              />
-              <StatCard
-                icon={<IconClock className='text-white' size='large' />}
-                title='总时间片'
-                value={stats.totalSlices}
-                bgGradient='linear-gradient(135deg, #6366f1 0%, #4338ca 100%)'
-              />
+            <div className='grid grid-cols-2 lg:grid-cols-2 gap-4 sm:gap-5 mb-8'>
               <StatCard
                 icon={<IconAlertTriangle className='text-white' size='large' />}
                 title='最低成功率'

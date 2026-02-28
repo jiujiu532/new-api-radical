@@ -327,8 +327,8 @@ export default function ModelHealthPublicPage() {
       for (const ts of hourStarts) {
         const stat = hourMap?.get(ts);
         if (stat && Number(stat.total_slices) > 0) {
-          modelTotalSuccess += Number(stat.success_slices) || 0;
-          modelTotalSlices += Number(stat.total_slices) || 0;
+          modelTotalSuccess += Number(stat.success_requests) || 0;
+          modelTotalSlices += Number(stat.total_requests) || 0;
         }
         if (stat) {
           modelTotalTokens += Number(stat.success_tokens) || 0;

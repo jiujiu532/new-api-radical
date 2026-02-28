@@ -37,7 +37,7 @@ func hourStartExprSQL(db *gorm.DB) string {
 
 func successRateExprSQL() string {
 	// Force float division across DBs (Postgres int/int would otherwise truncate).
-	return "CASE WHEN COUNT(*) = 0 THEN 0 ELSE (1.0 * SUM(has_success_qualified)) / COUNT(*) END"
+	return "CASE WHEN SUM(total_requests) = 0 THEN 0 ELSE (1.0 * (SUM(total_requests) - SUM(error_requests))) / SUM(total_requests) END"
 }
 
 func GetModelHealthHourlyStats(db *gorm.DB, modelName string, startHourTs int64, endHourTs int64) ([]ModelHealthHourlyStat, error) {
