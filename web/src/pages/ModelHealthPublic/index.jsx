@@ -45,7 +45,7 @@ function formatTokens(v) {
   const n0 = Number(v) || 0;
   const n = Math.floor(Math.abs(n0));
 
-  const units = ['', 'K', 'M', 'G', 'T', 'B'];
+  const units = ['', 'K', 'M', 'B', 'T'];
   let unitIdx = 0;
   let value = n;
 
@@ -108,7 +108,7 @@ function StatCard({ icon, title, value, subtitle, color, bgGradient, iconBg }) {
         className='absolute -right-4 -bottom-4 w-24 h-24 rounded-full opacity-15'
         style={{ backgroundColor: 'rgba(255,255,255,0.4)' }}
       />
-      
+
       {/* 顶部：图标和标题 */}
       <div className='flex items-center justify-between relative z-10'>
         <div className='text-sm font-medium text-white/90 tracking-wide'>{title}</div>
@@ -119,7 +119,7 @@ function StatCard({ icon, title, value, subtitle, color, bgGradient, iconBg }) {
           {icon}
         </div>
       </div>
-      
+
       {/* 底部：数值和副标题 */}
       <div className='relative z-10 mt-3'>
         <div className='text-3xl sm:text-4xl font-bold text-white tracking-tight'>{value}</div>
