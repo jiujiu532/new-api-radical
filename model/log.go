@@ -162,11 +162,21 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	logger.LogInfo(c, fmt.Sprintf("record consume log: userId=%d, params=%s", userId, common.GetJsonString(params)))
 	username := c.GetString("username")
 	otherStr := common.MapToJsonStr(params.Other)
+	logType := LogTypeConsume
+	isEmptyResponse := params.CompletionTokens == 0 && params.PromptTokens > 0
+	if isEmptyResponse {
+		logType = LogTypeError
+		if params.Content == "" {
+			params.Content = "空回复: 模型未返回任何内容 (completion_tokens=0)"
+		} else {
+			params.Content = "空回复: 模型未返回任何内容 (completion_tokens=0), " + params.Content
+		}
+	}
 	log := &Log{
 		UserId:           userId,
 		Username:         username,
 		CreatedAt:        common.GetTimestamp(),
-		Type:             LogTypeConsume,
+		Type:             logType,
 		Content:          params.Content,
 		PromptTokens:     params.PromptTokens,
 		CompletionTokens: params.CompletionTokens,
@@ -205,7 +215,7 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	RecordModelHealthEventAsync(c, &ModelHealthEvent{
 		ModelName:        params.ModelName,
 		CreatedAt:        log.CreatedAt,
-		IsError:          false,
+		IsError:          isEmptyResponse,
 		ResponseBytes:    responseBytes,
 		CompletionTokens: params.CompletionTokens,
 		TotalTokens:      params.PromptTokens + params.CompletionTokens,
