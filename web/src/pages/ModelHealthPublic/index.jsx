@@ -43,19 +43,28 @@ function getRateLevel(rate) {
 
 function formatTokens(v) {
   const n0 = Number(v) || 0;
-  const n = Math.floor(Math.abs(n0));
+  const n = Math.abs(n0);
 
   const units = ['', 'K', 'M', 'B', 'T'];
   let unitIdx = 0;
   let value = n;
 
   while (value >= 1000 && unitIdx < units.length - 1) {
-    value = Math.floor(value / 1000);
+    value = value / 1000;
     unitIdx++;
   }
 
   const sign = n0 < 0 ? '-' : '';
-  return `${sign}${value}${units[unitIdx]}`;
+  // 整数部分>=100则不显示小数，>=10显示1位，否则显示2位
+  let formatted;
+  if (value >= 100 || unitIdx === 0) {
+    formatted = Math.floor(value).toString();
+  } else if (value >= 10) {
+    formatted = value.toFixed(1);
+  } else {
+    formatted = value.toFixed(2);
+  }
+  return `${sign}${formatted}${units[unitIdx]}`;
 }
 
 function HealthCell({ cell, isLatest }) {
@@ -451,7 +460,7 @@ export default function ModelHealthPublicPage() {
               />
               <StatCard
                 icon={<IconTickCircle className='text-white' size='large' />}
-                title='Token总数'
+                title='Token总数(输入+输出)'
                 value={formatTokens(stats.totalSuccessTokens)}
                 subtitle='过去24小时'
                 color='#60a5fa'
