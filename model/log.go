@@ -216,6 +216,7 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 		ModelName:        params.ModelName,
 		CreatedAt:        log.CreatedAt,
 		IsError:          isEmptyResponse,
+		SkipHealthRate:   isEmptyResponse,
 		ResponseBytes:    responseBytes,
 		CompletionTokens: params.CompletionTokens,
 		TotalTokens:      params.PromptTokens + params.CompletionTokens,

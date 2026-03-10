@@ -35,6 +35,7 @@ type ModelHealthEvent struct {
 	ModelName           string
 	CreatedAt           int64
 	IsError             bool
+	SkipHealthRate      bool // 为 true 时只记录 token，不计入健康度请求数（如空回复）
 	ResponseBytes       int
 	CompletionTokens    int // 仅输出 token，用于健康判断
 	TotalTokens         int // 输入+输出 token，用于 Token 统计显示
@@ -95,11 +96,19 @@ func UpsertModelHealthSlice5m(ctx context.Context, db *gorm.DB, event *ModelHeal
 		MaxAssistantChars:        maxInt(0, event.AssistantChars),
 	}
 
-	if event.IsError {
-		row.ErrorRequests = 1
-	}
-	if event.SuccessIsQualified {
-		row.SuccessQualifiedRequests = 1
+	// 空回复：只累加 token，不计入请求数和错误数（不影响健康度百分比）
+	if event.SkipHealthRate {
+		row.TotalRequests = 0
+		row.ErrorRequests = 0
+		row.SuccessQualifiedRequests = 0
+		row.HasSuccessQualified = false
+	} else {
+		if event.IsError {
+			row.ErrorRequests = 1
+		}
+		if event.SuccessIsQualified {
+			row.SuccessQualifiedRequests = 1
+		}
 	}
 
 	updates := map[string]any{
