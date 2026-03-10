@@ -407,6 +407,10 @@ func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage 
 		extraContent = append(extraContent, "上游没有返回计费信息，无法扣费（可能是上游超时）")
 		logger.LogError(ctx, fmt.Sprintf("total tokens is 0, cannot consume quota, userId %d, channelId %d, "+
 			"tokenId %d, model %s， pre-consumed quota %d", relayInfo.UserId, relayInfo.ChannelId, relayInfo.TokenId, modelName, relayInfo.FinalPreConsumedQuota))
+	} else if completionTokens == 0 {
+		// 空回复：模型未返回任何内容，不计费
+		quota = 0
+		extraContent = append(extraContent, "空回复，不计费")
 	} else {
 		if !ratio.IsZero() && quota == 0 {
 			quota = 1
