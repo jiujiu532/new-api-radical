@@ -689,8 +689,9 @@ const InvitationCode = () => {
                                         />
                                     </Tooltip>
                                     <Popconfirm
-                                        title="确定删除此批次记录？（不会删除已生成的码）"
+                                        title="⚠️ 此操作会同时删除该批次下的所有码，确定删除？"
                                         onConfirm={() => handleDeleteBatch(batch.id)}
+                                        okType="danger"
                                     >
                                         <Button icon={<IconDelete />} size="small" type="danger" />
                                     </Popconfirm>

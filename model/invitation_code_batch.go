@@ -72,15 +72,6 @@ func GetBatches(codeType int, page int, pageSize int) ([]InvitationCodeBatch, in
 		return nil, 0, err
 	}
 
-	// 更新每个批次的实际使用计数
-	for i := range batches {
-		var usedCount int64
-		DB.Model(&InvitationCode{}).
-			Where("batch_id = ? AND used_count > 0", batches[i].Id).
-			Count(&usedCount)
-		batches[i].UsedCount = int(usedCount)
-	}
-
 	return batches, total, nil
 }
 
@@ -132,9 +123,26 @@ func ExportBatchCodes(batchId int) ([]string, error) {
 	return codeList, nil
 }
 
-// DeleteBatch 删除批次记录（不删除码本身）
+// DeleteBatch 删除批次记录及其关联的码
 func DeleteBatch(id int) error {
-	return DB.Delete(&InvitationCodeBatch{}, id).Error
+	tx := DB.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	// 先删除该批次下的所有码
+	if err := tx.Where("batch_id = ?", id).Delete(&InvitationCode{}).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// 再删除批次记录
+	if err := tx.Delete(&InvitationCodeBatch{}, id).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return tx.Commit().Error
 }
 
 // GenerateCodesWithBatch 批量生成码并创建批次

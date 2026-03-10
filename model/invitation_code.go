@@ -181,6 +181,15 @@ func ValidateAndUseCode(code string, codeType int, userId int, username string, 
 			return err
 		}
 
+		// 同步更新批次的使用计数
+		if invCode.BatchId > 0 {
+			if err := tx.Model(&InvitationCodeBatch{}).
+				Where("id = ?", invCode.BatchId).
+				UpdateColumn("used_count", gorm.Expr("used_count + 1")).Error; err != nil {
+				return err
+			}
+		}
+
 		return nil
 	})
 
