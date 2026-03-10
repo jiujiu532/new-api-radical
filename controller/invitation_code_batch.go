@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -179,5 +180,22 @@ func DeleteBatch(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "删除成功",
+	})
+}
+
+// DeleteAllBatches 清除所有批次记录
+func DeleteAllBatches(c *gin.Context) {
+	count, err := model.DeleteAllBatches()
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "清除失败: " + err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": fmt.Sprintf("已清除 %d 个批次及其关联的码", count),
 	})
 }

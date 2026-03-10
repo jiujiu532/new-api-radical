@@ -363,6 +363,7 @@ func SetApiRouter(router *gin.Engine) {
 			invitationCodeRoute.GET("/batch/:id", controller.GetBatchDetail)            // 批次详情
 			invitationCodeRoute.GET("/batch/:id/export", controller.ExportBatchCodes)   // 导出批次码
 			invitationCodeRoute.DELETE("/batch/:id", controller.DeleteBatch)            // 删除批次
+			invitationCodeRoute.DELETE("/batch/", controller.DeleteAllBatches)           // 清除所有批次
 		}
 
 		// 公开的注册码验证接口（用于注册页面预检）

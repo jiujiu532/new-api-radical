@@ -247,6 +247,20 @@ const InvitationCode = () => {
         }
     };
 
+    const handleDeleteAllBatches = async () => {
+        try {
+            const res = await API.delete('/api/invitation_code/batch/');
+            if (res.data.success) {
+                showSuccess(res.data.message);
+                loadBatches();
+            } else {
+                showError(res.data.message);
+            }
+        } catch (err) {
+            showError('清除失败');
+        }
+    };
+
     const handleCopyBatchCodes = async (batchId) => {
         try {
             const res = await API.get(`/api/invitation_code/batch/${batchId}/export`);
@@ -617,24 +631,35 @@ const InvitationCode = () => {
         <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
             {/* 批次操作栏 */}
             <Card style={{ marginBottom: 12, flexShrink: 0 }} bodyStyle={{ padding: '12px' }}>
-                <Space>
-                    <Button icon={<IconPlus />} type="primary" onClick={() => setGenerateVisible(true)}>
-                        批量生成
-                    </Button>
-                    <Button icon={<IconRefresh />} onClick={loadBatches}>
-                        刷新
-                    </Button>
-                    <Select
-                        placeholder="类型筛选"
-                        value={batchFilterType}
-                        onChange={(v) => { setBatchFilterType(v); setBatchPage(1); }}
-                        style={{ width: 120 }}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Space>
+                        <Button icon={<IconPlus />} type="primary" onClick={() => setGenerateVisible(true)}>
+                            批量生成
+                        </Button>
+                        <Button icon={<IconRefresh />} onClick={loadBatches}>
+                            刷新
+                        </Button>
+                        <Select
+                            placeholder="类型筛选"
+                            value={batchFilterType}
+                            onChange={(v) => { setBatchFilterType(v); setBatchPage(1); }}
+                            style={{ width: 120 }}
+                        >
+                            <Select.Option value={0}>全部类型</Select.Option>
+                            <Select.Option value={1}>注册码</Select.Option>
+                            <Select.Option value={2}>解封码</Select.Option>
+                        </Select>
+                    </Space>
+                    <Popconfirm
+                        title="⚠️ 此操作会删除所有批次记录及其关联的码，且不可恢复！"
+                        onConfirm={handleDeleteAllBatches}
+                        okType="danger"
                     >
-                        <Select.Option value={0}>全部类型</Select.Option>
-                        <Select.Option value={1}>注册码</Select.Option>
-                        <Select.Option value={2}>解封码</Select.Option>
-                    </Select>
-                </Space>
+                        <Button icon={<IconDelete />} type="danger">
+                            清除全部
+                        </Button>
+                    </Popconfirm>
+                </div>
             </Card>
 
             {/* 批次列表 */}

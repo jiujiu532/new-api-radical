@@ -145,6 +145,30 @@ func DeleteBatch(id int) error {
 	return tx.Commit().Error
 }
 
+// DeleteAllBatches 删除所有批次记录及其关联的码
+func DeleteAllBatches() (int64, error) {
+	tx := DB.Begin()
+	if tx.Error != nil {
+		return 0, tx.Error
+	}
+
+	// 先删除所有有 batch_id 的码
+	if err := tx.Where("batch_id > 0").Delete(&InvitationCode{}).Error; err != nil {
+		tx.Rollback()
+		return 0, err
+	}
+
+	// 统计并删除所有批次记录
+	var count int64
+	tx.Model(&InvitationCodeBatch{}).Count(&count)
+	if err := tx.Where("1 = 1").Delete(&InvitationCodeBatch{}).Error; err != nil {
+		tx.Rollback()
+		return 0, err
+	}
+
+	return count, tx.Commit().Error
+}
+
 // GenerateCodesWithBatch 批量生成码并创建批次
 func GenerateCodesWithBatch(batchName string, codeType int, count int, maxUses int, note string, expiredAt int64, createdBy int) (*InvitationCodeBatch, []InvitationCode, error) {
 	if count <= 0 || count > 1000 {
