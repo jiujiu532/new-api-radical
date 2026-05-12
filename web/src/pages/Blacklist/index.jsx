@@ -116,6 +116,7 @@ const Blacklist = () => {
     const [total, setTotal] = useState(0);
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
+    const [isFetching, setIsFetching] = useState(false);
 
     // 系统状态
     const [status, setStatus] = useState({});
@@ -161,8 +162,12 @@ const Blacklist = () => {
     }, []);
 
     // 加载封禁用户列表
-    const fetchBannedUsers = useCallback(async () => {
-        setLoading(true);
+    const fetchBannedUsers = useCallback(async (isInitial = false) => {
+        if (isInitial) {
+            setLoading(true);
+        } else {
+            setIsFetching(true);
+        }
         try {
             const res = await API.get('/api/blacklist/', {
                 params: { page, page_size: pageSize },
@@ -177,12 +182,17 @@ const Blacklist = () => {
             showError(t('获取封禁名单失败'));
         }
         setLoading(false);
+        setIsFetching(false);
     }, [page, pageSize, t]);
 
     useEffect(() => {
         fetchStatus();
-        fetchBannedUsers();
-    }, [fetchStatus, fetchBannedUsers]);
+        fetchBannedUsers(true);
+    }, [fetchStatus]);
+
+    useEffect(() => {
+        fetchBannedUsers(false);
+    }, [page, pageSize]);
 
     // 处理 OAuth 回调
     useEffect(() => {
@@ -982,23 +992,62 @@ const Blacklist = () => {
                             }
                         />
                     ) : (
-                        <Table
-                            columns={columns}
-                            dataSource={bannedUsers}
-                            rowKey="id"
-                            pagination={{
-                                currentPage: page,
-                                pageSize,
-                                total,
-                                showTotal: true,
-                                formatPageText: ({ currentStart, currentEnd, total }) =>
-                                    `显示第 ${currentStart} 条-第 ${currentEnd} 条，共 ${total} 条`,
-                                onPageChange: (p) => setPage(p),
-                                onPageSizeChange: (size) => { setPageSize(size); setPage(1); },
-                                pageSizeOpts: [10, 20, 50],
-                            }}
-                            className="blacklist-table"
-                        />
+                        <div style={{ position: 'relative' }}>
+                            {/* 翻页时轻量 overlay，不整体替换内容，避免闪烁 */}
+                            {isFetching && (
+                                <div style={{
+                                    position: 'absolute', inset: 0, zIndex: 10,
+                                    background: 'rgba(0,0,0,0.12)',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    borderRadius: 4,
+                                }}>
+                                    <Spin size="large" />
+                                </div>
+                            )}
+                            <Table
+                                columns={columns}
+                                dataSource={bannedUsers}
+                                rowKey="id"
+                                pagination={false}
+                                className="blacklist-table"
+                            />
+                            {/* 自定义分页，避免 Semi Table 内部做前端切片 */}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16, padding: '0 4px' }}>
+                                <span style={{ color: 'var(--semi-color-text-2)', fontSize: 14 }}>
+                                    {`显示第 ${(page - 1) * pageSize + 1} 条-第 ${Math.min(page * pageSize, total)} 条，共 ${total} 条`}
+                                </span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <span style={{ color: 'var(--semi-color-text-2)', fontSize: 14 }}>
+                                        {`总页数：${Math.ceil(total / pageSize)}`}
+                                    </span>
+                                    <Button
+                                        size="small"
+                                        disabled={page <= 1 || isFetching}
+                                        onClick={() => setPage(p => p - 1)}
+                                        icon={<svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><path d="M7.5 2L3.5 6l4 4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                                    />
+                                    {Array.from({ length: Math.ceil(total / pageSize) }, (_, i) => i + 1).map(pg => (
+                                        <Button
+                                            key={pg}
+                                            size="small"
+                                            theme={pg === page ? 'solid' : 'borderless'}
+                                            type={pg === page ? 'primary' : 'tertiary'}
+                                            disabled={isFetching}
+                                            onClick={() => setPage(pg)}
+                                            style={{ minWidth: 32 }}
+                                        >
+                                            {pg}
+                                        </Button>
+                                    ))}
+                                    <Button
+                                        size="small"
+                                        disabled={page >= Math.ceil(total / pageSize) || isFetching}
+                                        onClick={() => setPage(p => p + 1)}
+                                        icon={<svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><path d="M4.5 2l4 4-4 4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                                    />
+                                </div>
+                            </div>
+                        </div>
                     )}
                 </Card>
 
