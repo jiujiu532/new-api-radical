@@ -115,7 +115,7 @@ const Blacklist = () => {
     const [loading, setLoading] = useState(false);
     const [total, setTotal] = useState(0);
     const [page, setPage] = useState(1);
-    const [pageSize] = useState(20);
+    const [pageSize, setPageSize] = useState(10);
 
     // 系统状态
     const [status, setStatus] = useState({});
@@ -987,11 +987,15 @@ const Blacklist = () => {
                             dataSource={bannedUsers}
                             rowKey="id"
                             pagination={{
-                                current: page,
+                                currentPage: page,
                                 pageSize,
                                 total,
-                                showTotal: (total) => `${total} ${t('人')}`,
-                                onChange: (p) => setPage(p),
+                                showTotal: true,
+                                formatPageText: ({ currentStart, currentEnd, total }) =>
+                                    `显示第 ${currentStart} 条-第 ${currentEnd} 条，共 ${total} 条`,
+                                onPageChange: (p) => setPage(p),
+                                onPageSizeChange: (size) => { setPageSize(size); setPage(1); },
+                                pageSizeOpts: [10, 20, 50],
                             }}
                             className="blacklist-table"
                         />
