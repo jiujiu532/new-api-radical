@@ -53,3 +53,9 @@ scripts/
 
 bin/new-api-*
 
+# 编译产物（根目录直接输出的二进制）
+newapi-linux-*
+newapi-windows-*
+newapi-darwin-*
+newapi-test*
+
