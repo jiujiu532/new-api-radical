@@ -414,6 +414,12 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
 	switch info.RelayMode {
 	case relayconstant.RelayModeImagesEdits:
+		// JSON 格式的图生图请求：直接作为 JSON 转发（不重建 multipart）
+		// OpenAI /v1/images/edits 同时支持 multipart 和 JSON 两种格式
+		contentType := c.Request.Header.Get("Content-Type")
+		if strings.Contains(contentType, "application/json") {
+			return request, nil
+		}
 
 		var requestBody bytes.Buffer
 		writer := multipart.NewWriter(&requestBody)
