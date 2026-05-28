@@ -341,6 +341,8 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	} else if isImageRequest {
 		// 图片请求无条件启用心跳（生图耗时 60-120s，必须保持连接活跃）
 		// JSON 规范允许前导空白，"   {...}" 能被客户端正确解析
+		// 在发送任何数据之前设置正确的 Content-Type，避免 gin 默认 text/plain
+		c.Writer.Header().Set("Content-Type", "application/json")
 		stopPinger = startImageKeepAlive(c, 5*time.Second)
 		defer func() {
 			if stopPinger != nil {
