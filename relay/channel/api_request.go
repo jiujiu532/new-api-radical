@@ -218,6 +218,58 @@ func startPingKeepAlive(c *gin.Context, pingInterval time.Duration) context.Canc
 	return stopPinger
 }
 
+// startImageKeepAlive 为图片请求发送空格心跳保持连接活跃
+// JSON 规范允许前导空白，所以 "   {...}" 能被客户端正确解析
+func startImageKeepAlive(c *gin.Context, interval time.Duration) context.CancelFunc {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	gopool.Go(func() {
+		defer func() {
+			if r := recover(); r != nil {
+				if common2.DebugEnabled {
+					println("image keepalive goroutine panic recovered:", fmt.Sprintf("%v", r))
+				}
+			}
+		}()
+
+		if interval <= 0 {
+			interval = 5 * time.Second
+		}
+
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+
+		// 最大保活时间 10 分钟，防止 goroutine 泄漏
+		maxDuration := 10 * time.Minute
+		timeout := time.NewTimer(maxDuration)
+		defer timeout.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				if c.Writer == nil || c.Request.Context().Err() != nil {
+					return
+				}
+				_, err := c.Writer.Write([]byte(" "))
+				if err != nil {
+					return
+				}
+				if flusher, ok := c.Writer.(http.Flusher); ok {
+					flusher.Flush()
+				}
+			case <-ctx.Done():
+				return
+			case <-c.Request.Context().Done():
+				return
+			case <-timeout.C:
+				return
+			}
+		}
+	})
+
+	return cancel
+}
+
 func sendPingData(c *gin.Context, mutex *sync.Mutex) error {
 	// 增加超时控制，防止锁死等待
 	done := make(chan error, 1)
@@ -265,6 +317,10 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	}
 
 	var stopPinger context.CancelFunc
+	// 判断是否为图片生成请求（耗时 60-120s，需要心跳保活防止下游超时断开）
+	isImageRequest := info.RelayMode == constant.RelayModeImagesGenerations ||
+		info.RelayMode == constant.RelayModeImagesEdits
+
 	if info.IsStream {
 		helper.SetEventStreamHeaders(c)
 		// 处理流式请求的 ping 保活
@@ -279,6 +335,22 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 					if common2.DebugEnabled {
 						println("SSE ping goroutine stopped by defer")
 					}
+				}
+			}()
+		}
+	} else if isImageRequest {
+		// 图片请求心跳保活：发送空格字节保持连接活跃
+		// JSON 规范允许前导空白，"   {...}" 能被正确解析
+		generalSettings := operation_setting.GetGeneralSetting()
+		if generalSettings.PingIntervalEnabled && !info.DisablePing {
+			pingInterval := time.Duration(generalSettings.PingIntervalSeconds) * time.Second
+			if pingInterval <= 0 {
+				pingInterval = 5 * time.Second
+			}
+			stopPinger = startImageKeepAlive(c, pingInterval)
+			defer func() {
+				if stopPinger != nil {
+					stopPinger()
 				}
 			}()
 		}

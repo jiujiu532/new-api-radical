@@ -593,8 +593,16 @@ func OpenaiHandlerWithUsage(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 
-	// 写入新的 response body
-	service.IOCopyBytesGracefully(c, resp, responseBody)
+	// 写入响应体
+	// 如果心跳已经发送了空格字节，header 已隐式写出，直接追加 body
+	if c.Writer.Written() {
+		c.Writer.Write(responseBody)
+		if flusher, ok := c.Writer.(http.Flusher); ok {
+			flusher.Flush()
+		}
+	} else {
+		service.IOCopyBytesGracefully(c, resp, responseBody)
+	}
 
 	// Once we've written to the client, we should not return errors anymore
 	// because the upstream has already consumed resources and returned content
