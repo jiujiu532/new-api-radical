@@ -339,21 +339,14 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 			}()
 		}
 	} else if isImageRequest {
-		// 图片请求心跳保活：发送空格字节保持连接活跃
-		// JSON 规范允许前导空白，"   {...}" 能被正确解析
-		generalSettings := operation_setting.GetGeneralSetting()
-		if generalSettings.PingIntervalEnabled && !info.DisablePing {
-			pingInterval := time.Duration(generalSettings.PingIntervalSeconds) * time.Second
-			if pingInterval <= 0 {
-				pingInterval = 5 * time.Second
+		// 图片请求无条件启用心跳（生图耗时 60-120s，必须保持连接活跃）
+		// JSON 规范允许前导空白，"   {...}" 能被客户端正确解析
+		stopPinger = startImageKeepAlive(c, 5*time.Second)
+		defer func() {
+			if stopPinger != nil {
+				stopPinger()
 			}
-			stopPinger = startImageKeepAlive(c, pingInterval)
-			defer func() {
-				if stopPinger != nil {
-					stopPinger()
-				}
-			}()
-		}
+		}()
 	}
 
 	resp, err := client.Do(req)
