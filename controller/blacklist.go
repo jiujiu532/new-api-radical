@@ -155,8 +155,24 @@ func GetBlacklist(c *gin.Context) {
 		query = query.Where("username LIKE ? OR display_name LIKE ?", "%"+keyword+"%", "%"+keyword+"%")
 	}
 	query.Count(&total)
+	// 排序逻辑：已解封(定时封禁已过期) > 定时封禁(按剩余时间从短到长) > 永久封禁
+	// ban_duration > 0 且 banned_at + ban_duration <= now → 已解封（排最前）
+	// ban_duration > 0 且 banned_at + ban_duration > now → 定时封禁（按解封时间升序）
+	// ban_duration = 0 → 永久封禁（排最后）
+	now := common.GetTimestamp()
+	orderClause := fmt.Sprintf(`
+		CASE 
+			WHEN ban_duration > 0 AND (banned_at + ban_duration) <= %d THEN 0
+			WHEN ban_duration > 0 THEN 1
+			ELSE 2
+		END ASC,
+		CASE 
+			WHEN ban_duration > 0 THEN (banned_at + ban_duration)
+			ELSE 9999999999
+		END ASC
+	`, now)
 	query.Select("id, username, display_name, email, github_id, discord_id, linux_do_id, wechat_id, telegram_id, oidc_id, remark, banned_at, ban_duration").
-		Order("id desc").
+		Order(orderClause).
 		Offset((page - 1) * pageSize).
 		Limit(pageSize).
 		Find(&users)

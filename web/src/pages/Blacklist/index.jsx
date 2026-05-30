@@ -521,7 +521,7 @@ const Blacklist = () => {
                     if (remaining <= 0) {
                         return (
                             <Tag color="green" prefixIcon={<IconUnlock />}>
-                                {t('即将解封')}
+                                {t('已解封')}
                             </Tag>
                         );
                     }
