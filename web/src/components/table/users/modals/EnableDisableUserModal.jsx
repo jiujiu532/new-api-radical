@@ -88,6 +88,13 @@ const EnableDisableUserModal = ({
     if (visible && isDisable) {
       setCustomPresets(getCustomPresets());
     }
+    // 弹窗打开时重置表单状态
+    if (visible) {
+      setBanDuration(0);
+      setCustomMinutes(10);
+      setRemark('');
+      setNewPreset('');
+    }
   }, [visible, isDisable]);
 
   const handleConfirm = () => {
@@ -240,7 +247,7 @@ const EnableDisableUserModal = ({
                 size="large"
                 color="orange"
                 closable
-                onClose={() => handleDeletePreset(preset)}
+                onClose={(e) => { e.stopPropagation(); handleDeletePreset(preset); }}
                 style={{ cursor: 'pointer' }}
                 onClick={() => handlePresetClick(preset)}
               >
