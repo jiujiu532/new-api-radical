@@ -949,6 +949,7 @@ type ManageRequest struct {
 	Id          int    `json:"id"`
 	Action      string `json:"action"`
 	BanDuration int64  `json:"ban_duration"` // 封禁时长（秒），0=永久
+	Remark      string `json:"remark"`       // 封禁原因/备注
 }
 
 // ManageUser Only admin user can do this
@@ -997,11 +998,16 @@ func ManageUser(c *gin.Context) {
 			req.BanDuration = 0 // 负值视为永久封禁
 		}
 		bannedAt := time.Now().Unix()
-		err := model.DB.Model(&user).Updates(map[string]interface{}{
+		updateMap := map[string]interface{}{
 			"status":       common.UserStatusDisabled,
 			"banned_at":    bannedAt,
 			"ban_duration": req.BanDuration,
-		}).Error
+		}
+		// 封禁时写入备注（覆盖旧备注）
+		if req.Remark != "" {
+			updateMap["remark"] = req.Remark
+		}
+		err := model.DB.Model(&user).Updates(updateMap).Error
 		if err != nil {
 			common.ApiError(c, err)
 			return

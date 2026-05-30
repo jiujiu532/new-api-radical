@@ -17,8 +17,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useState } from 'react';
-import { Modal, RadioGroup, Radio, InputNumber, Space, Typography } from '@douyinfe/semi-ui';
+import React, { useState, useEffect } from 'react';
+import { Modal, RadioGroup, Radio, InputNumber, Space, Typography, Input, Tag, Divider, Button } from '@douyinfe/semi-ui';
+import { IconClose, IconPlus } from '@douyinfe/semi-icons';
 
 const { Text } = Typography;
 
@@ -36,6 +37,38 @@ const BAN_DURATION_OPTIONS = [
   { label: '自定义', value: -1 },
 ];
 
+// 系统预设的快速备注
+const DEFAULT_REMARK_PRESETS = [
+  'IP过多',
+  '违反分组规则',
+  '疑似分发',
+  '滥用额度',
+  '异常高频请求',
+  '多账号',
+  '违规内容',
+  '恶意攻击',
+];
+
+const STORAGE_KEY = 'ban_remark_presets';
+
+// 从 localStorage 获取自定义快速备注
+function getCustomPresets() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      return JSON.parse(saved);
+    }
+  } catch (e) {
+    // ignore
+  }
+  return [];
+}
+
+// 保存自定义快速备注到 localStorage
+function saveCustomPresets(presets) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(presets));
+}
+
 const EnableDisableUserModal = ({
   visible,
   onCancel,
@@ -45,26 +78,74 @@ const EnableDisableUserModal = ({
   t,
 }) => {
   const isDisable = action === 'disable';
-  const [banDuration, setBanDuration] = useState(0); // 0 = permanent
+  const [banDuration, setBanDuration] = useState(0);
   const [customMinutes, setCustomMinutes] = useState(10);
+  const [remark, setRemark] = useState('');
+  const [newPreset, setNewPreset] = useState('');
+  const [customPresets, setCustomPresets] = useState([]);
+
+  useEffect(() => {
+    if (visible && isDisable) {
+      setCustomPresets(getCustomPresets());
+    }
+  }, [visible, isDisable]);
 
   const handleConfirm = () => {
     if (isDisable) {
       let duration = banDuration;
       if (banDuration === -1) {
-        // custom: convert minutes to seconds
         duration = customMinutes * 60;
       }
-      onConfirm(duration);
+      onConfirm(duration, remark.trim());
     } else {
-      onConfirm(0);
+      onConfirm(0, '');
+    }
+  };
+
+  const handleSkip = () => {
+    if (isDisable) {
+      let duration = banDuration;
+      if (banDuration === -1) {
+        duration = customMinutes * 60;
+      }
+      onConfirm(duration, '');
+    } else {
+      onConfirm(0, '');
     }
   };
 
   const handleCancel = () => {
     setBanDuration(0);
     setCustomMinutes(10);
+    setRemark('');
+    setNewPreset('');
     onCancel();
+  };
+
+  // 点击快速选择药丸，填入封禁原因输入框
+  const handlePresetClick = (preset) => {
+    setRemark(preset);
+  };
+
+  // 删除自定义快速备注
+  const handleDeletePreset = (preset) => {
+    const updated = customPresets.filter((p) => p !== preset);
+    setCustomPresets(updated);
+    saveCustomPresets(updated);
+  };
+
+  // 添加新的快速备注
+  const handleAddPreset = () => {
+    const trimmed = newPreset.trim();
+    if (!trimmed) return;
+    if (DEFAULT_REMARK_PRESETS.includes(trimmed) || customPresets.includes(trimmed)) {
+      setNewPreset('');
+      return;
+    }
+    const updated = [...customPresets, trimmed];
+    setCustomPresets(updated);
+    saveCustomPresets(updated);
+    setNewPreset('');
   };
 
   return (
@@ -72,13 +153,20 @@ const EnableDisableUserModal = ({
       title={isDisable ? t('封禁用户') : t('确定要启用此用户吗？')}
       visible={visible}
       onCancel={handleCancel}
-      onOk={handleConfirm}
-      okText={isDisable ? t('确认封禁') : t('确认')}
-      okButtonProps={isDisable ? { type: 'danger' } : {}}
-      width={isDisable ? 480 : undefined}
+      footer={isDisable ? (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          <Button onClick={handleCancel}>{t('取消')}</Button>
+          <Button onClick={handleSkip}>{t('跳过备注')}</Button>
+          <Button theme="solid" type="danger" onClick={handleConfirm}>{t('确认封禁')}</Button>
+        </div>
+      ) : undefined}
+      onOk={isDisable ? undefined : handleConfirm}
+      okText={isDisable ? undefined : t('确认')}
+      width={isDisable ? 520 : undefined}
     >
       {isDisable ? (
         <div>
+          {/* 封禁时长选择 */}
           <Text style={{ marginBottom: 12, display: 'block' }}>
             {t('选择封禁时长')}：
           </Text>
@@ -107,6 +195,79 @@ const EnableDisableUserModal = ({
               />
             </Space>
           )}
+
+          <Divider margin={16} />
+
+          {/* 封禁原因输入框 */}
+          <Text style={{ marginBottom: 8, display: 'block' }}>
+            {t('封禁原因')}：
+          </Text>
+          <Input
+            placeholder={t('输入封禁原因（可选）')}
+            value={remark}
+            onChange={setRemark}
+            showClear
+          />
+
+          {/* 快速选择区域 */}
+          <Text type="tertiary" size="small" style={{ marginTop: 12, marginBottom: 8, display: 'block' }}>
+            {t('快速选择')}：
+          </Text>
+          <div style={{
+            maxHeight: 120,
+            overflowY: 'auto',
+            padding: '8px 0',
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 6,
+          }}>
+            {/* 系统预设（不可删除） */}
+            {DEFAULT_REMARK_PRESETS.map((preset) => (
+              <Tag
+                key={preset}
+                size="large"
+                color="blue"
+                style={{ cursor: 'pointer' }}
+                onClick={() => handlePresetClick(preset)}
+              >
+                {preset}
+              </Tag>
+            ))}
+            {/* 自定义预设（可删除） */}
+            {customPresets.map((preset) => (
+              <Tag
+                key={preset}
+                size="large"
+                color="orange"
+                closable
+                onClose={() => handleDeletePreset(preset)}
+                style={{ cursor: 'pointer' }}
+                onClick={() => handlePresetClick(preset)}
+              >
+                {preset}
+              </Tag>
+            ))}
+          </div>
+
+          {/* 添加快速选择 */}
+          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            <Input
+              placeholder={t('输入新的快速选择项')}
+              value={newPreset}
+              onChange={setNewPreset}
+              onEnterPress={handleAddPreset}
+              style={{ flex: 1 }}
+              size="small"
+            />
+            <Button
+              size="small"
+              icon={<IconPlus />}
+              onClick={handleAddPreset}
+              disabled={!newPreset.trim()}
+            >
+              {t('填入')}
+            </Button>
+          </div>
         </div>
       ) : (
         t('此操作将启用用户账户')

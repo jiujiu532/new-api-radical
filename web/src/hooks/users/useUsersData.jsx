@@ -121,7 +121,7 @@ export const useUsersData = () => {
   };
 
   // Manage user operations (promote, demote, enable, disable, delete)
-  const manageUser = async (userId, action, record, banDuration = 0) => {
+  const manageUser = async (userId, action, record, banDuration = 0, remark = '') => {
     // Trigger loading state to force table re-render
     setLoading(true);
 
@@ -129,9 +129,12 @@ export const useUsersData = () => {
       id: userId,
       action,
     };
-    // Only include ban_duration for disable action
+    // Only include ban_duration and remark for disable action
     if (action === 'disable') {
       payload.ban_duration = banDuration;
+      if (remark) {
+        payload.remark = remark;
+      }
     }
 
     const res = await API.post('/api/user/manage', payload);
