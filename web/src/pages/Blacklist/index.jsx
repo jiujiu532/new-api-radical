@@ -32,6 +32,7 @@ import {
     Banner,
     Steps,
     Input,
+    TextArea,
     Tooltip,
     Divider,
     Pagination,
@@ -119,7 +120,20 @@ const Blacklist = () => {
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
     const [searchKeyword, setSearchKeyword] = useState('');
+    const [editingNotice, setEditingNotice] = useState(false);
+    const [noticeText, setNoticeText] = useState('');
+    const [savedNotice, setSavedNotice] = useState('');
     const isFirstLoad = useRef(true);
+
+    const defaultNotice = '封禁通常是因为违反了平台使用规则\n如果您认为是误封，请联系管理员获取解封码\n解封码是一次性的，使用后即失效\n多次违规可能导致永久封禁\n备注若超过8个字将自动省略，鼠标悬停可查看完整内容';
+
+    // 判断是否为管理员（从 localStorage 的 user 信息中获取）
+    const isAdmin = (() => {
+        try {
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
+            return user.role >= 10;
+        } catch { return false; }
+    })();
 
     // 系统状态
     const [status, setStatus] = useState({});
@@ -179,6 +193,10 @@ const Blacklist = () => {
             if (res.data.success) {
                 setBannedUsers(res.data.data.list || []);
                 setTotal(res.data.data.total || 0);
+                if (res.data.data.notice) {
+                    setSavedNotice(res.data.data.notice);
+                    setNoticeText(res.data.data.notice);
+                }
             } else {
                 showError(res.data.message);
             }
@@ -202,6 +220,22 @@ const Blacklist = () => {
     const handleSearch = () => {
         setPage(1);
         fetchBannedUsers(1, pageSize, searchKeyword);
+    };
+
+    // 保存封禁说明
+    const handleSaveNotice = async () => {
+        try {
+            const res = await API.put('/api/blacklist/notice', { notice: noticeText });
+            if (res.data.success) {
+                setSavedNotice(noticeText);
+                setEditingNotice(false);
+                showSuccess(t('保存成功'));
+            } else {
+                showError(res.data.message);
+            }
+        } catch (err) {
+            showError(t('保存失败'));
+        }
     };
 
     // 处理 OAuth 回调
@@ -960,15 +994,41 @@ const Blacklist = () => {
                     </Text>
                 </div>
 
-                {/* 封禁说明 */}
+                {/* 封禁说明（可编辑） */}
                 <Card className="mb-6 !bg-gray-800/30 !border-gray-700" bodyStyle={{ padding: '12px 20px' }}>
-                    <ul className="text-gray-400 space-y-1 text-sm" style={{ margin: 0, paddingLeft: 0, listStyle: 'none' }}>
-                        <li>• {t('封禁通常是因为违反了平台使用规则')}</li>
-                        <li>• {t('如果您认为是误封，请联系管理员获取解封码')}</li>
-                        <li>• {t('解封码是一次性的，使用后即失效')}</li>
-                        <li>• {t('多次违规可能导致永久封禁')}</li>
-                        <li>• {t('备注若超过8个字将自动省略，鼠标悬停可查看完整内容')}</li>
-                    </ul>
+                    {editingNotice ? (
+                        <div>
+                            <TextArea
+                                value={noticeText}
+                                onChange={setNoticeText}
+                                placeholder={t('输入封禁说明（每行一条）')}
+                                style={{ marginBottom: 8 }}
+                                autosize={{ minRows: 3, maxRows: 8 }}
+                            />
+                            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                                <Button size="small" onClick={() => { setEditingNotice(false); setNoticeText(savedNotice); }}>{t('取消')}</Button>
+                                <Button size="small" theme="solid" onClick={handleSaveNotice}>{t('保存')}</Button>
+                            </div>
+                        </div>
+                    ) : (
+                        <div style={{ position: 'relative' }}>
+                            {isAdmin && (
+                                <Button
+                                    size="small"
+                                    theme="borderless"
+                                    style={{ position: 'absolute', right: 0, top: 0 }}
+                                    onClick={() => setEditingNotice(true)}
+                                >
+                                    {t('编辑')}
+                                </Button>
+                            )}
+                            <ul className="text-gray-400 space-y-1 text-sm" style={{ margin: 0, paddingLeft: 0, listStyle: 'none' }}>
+                                {(savedNotice || defaultNotice).split('\n').filter(Boolean).map((line, i) => (
+                                    <li key={i}>{line.startsWith('•') ? line : '• ' + line}</li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
                 </Card>
 
                 {/* 解封提示卡片 */}

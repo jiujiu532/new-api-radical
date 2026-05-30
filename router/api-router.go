@@ -28,6 +28,7 @@ func SetApiRouter(router *gin.Engine) {
 		
 		// 小黑屋（公开接口）
 		apiRouter.GET("/blacklist/", controller.GetBlacklist)
+		apiRouter.PUT("/blacklist/notice", middleware.AdminAuth(), controller.UpdateBlacklistNotice)
 		apiRouter.GET("/blacklist/verify_method", controller.GetUnbanVerifyMethod)
 		apiRouter.POST("/blacklist/send_code", middleware.EmailVerificationRateLimit(), controller.SendUnbanVerifyCode)
 		apiRouter.POST("/blacklist/send_email_code", middleware.EmailVerificationRateLimit(), controller.SendUnbanEmailCode)

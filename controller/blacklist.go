@@ -206,6 +206,7 @@ func GetBlacklist(c *gin.Context) {
 			"total":     total,
 			"page":      page,
 			"page_size": pageSize,
+			"notice":    common.OptionMap["BlacklistNotice"],
 		},
 	})
 }
@@ -834,5 +835,34 @@ func OAuthUnbanVerifyByCode(c *gin.Context) {
 			"username":     user.Username,
 			"display_name": user.DisplayName,
 		},
+	})
+}
+
+// UpdateBlacklistNotice 更新小黑屋公告（管理员接口）
+func UpdateBlacklistNotice(c *gin.Context) {
+	var req struct {
+		Notice string `json:"notice"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "参数错误",
+		})
+		return
+	}
+
+	err := model.UpdateOption("BlacklistNotice", req.Notice)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "保存失败：" + err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "保存成功",
 	})
 }
