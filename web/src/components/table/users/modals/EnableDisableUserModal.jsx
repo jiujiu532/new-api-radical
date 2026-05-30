@@ -166,9 +166,14 @@ const EnableDisableUserModal = ({
           <Button onClick={handleSkip}>{t('跳过备注')}</Button>
           <Button theme="solid" type="danger" onClick={handleConfirm}>{t('确认封禁')}</Button>
         </div>
-      ) : undefined}
-      onOk={isDisable ? undefined : handleConfirm}
-      okText={isDisable ? undefined : t('确认')}
+      ) : (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          <Button onClick={handleCancel}>{t('取消')}</Button>
+          <Button theme="solid" onClick={handleConfirm}>{t('确认启用')}</Button>
+        </div>
+      )}
+      onOk={handleConfirm}
+      okText={t('确认')}
       width={isDisable ? 520 : undefined}
     >
       {isDisable ? (

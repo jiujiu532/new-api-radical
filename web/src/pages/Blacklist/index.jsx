@@ -48,6 +48,7 @@ import {
     IconKey,
     IconLink,
     IconArrowLeft,
+    IconSearch,
 } from '@douyinfe/semi-icons';
 import { API, showError, showSuccess } from '@/helpers';
 import { useTranslation } from 'react-i18next';
@@ -117,6 +118,7 @@ const Blacklist = () => {
     const [total, setTotal] = useState(0);
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
+    const [searchKeyword, setSearchKeyword] = useState('');
     const isFirstLoad = useRef(true);
 
     // 系统状态
@@ -163,15 +165,17 @@ const Blacklist = () => {
     }, []);
 
     // 加载封禁用户列表
-    const fetchBannedUsers = useCallback(async (currentPage, currentPageSize) => {
+    const fetchBannedUsers = useCallback(async (currentPage, currentPageSize, keyword = '') => {
         // 首次加载显示全屏 loading，翻页只更新数据不清空
         if (isFirstLoad.current) {
             setLoading(true);
         }
         try {
-            const res = await API.get('/api/blacklist/', {
-                params: { page: currentPage, page_size: currentPageSize },
-            });
+            const params = { page: currentPage, page_size: currentPageSize };
+            if (keyword) {
+                params.keyword = keyword;
+            }
+            const res = await API.get('/api/blacklist/', { params });
             if (res.data.success) {
                 setBannedUsers(res.data.data.list || []);
                 setTotal(res.data.data.total || 0);
@@ -191,8 +195,14 @@ const Blacklist = () => {
 
     // page 或 pageSize 变化时重新拉数据
     useEffect(() => {
-        fetchBannedUsers(page, pageSize);
+        fetchBannedUsers(page, pageSize, searchKeyword);
     }, [page, pageSize, fetchBannedUsers]);
+
+    // 搜索处理
+    const handleSearch = () => {
+        setPage(1);
+        fetchBannedUsers(1, pageSize, searchKeyword);
+    };
 
     // 处理 OAuth 回调
     useEffect(() => {
@@ -453,7 +463,7 @@ const Blacklist = () => {
                 showSuccess(t('🎉 解封成功！您可以正常登录了'));
                 setUnbanVisible(false);
                 resetUnbanForm();
-                fetchBannedUsers(page, pageSize);
+                fetchBannedUsers(page, pageSize, searchKeyword);
             } else {
                 showError(res.data.message);
             }
@@ -978,6 +988,19 @@ const Blacklist = () => {
                             {t('封禁名单')}
                             <Tag size="small" color="red">{total} {t('人')}</Tag>
                         </div>
+                    }
+                    headerExtraContent={
+                        <Input
+                            prefix={<IconSearch />}
+                            placeholder={t('搜索用户名')}
+                            value={searchKeyword}
+                            onChange={setSearchKeyword}
+                            onEnterPress={handleSearch}
+                            showClear
+                            onClear={() => { setSearchKeyword(''); setPage(1); fetchBannedUsers(1, pageSize, ''); }}
+                            style={{ width: 200 }}
+                            size="small"
+                        />
                     }
                 >
                     {loading ? (

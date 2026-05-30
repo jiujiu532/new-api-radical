@@ -122,6 +122,7 @@ func getAuthMethods(user model.User) []string {
 func GetBlacklist(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	keyword := c.DefaultQuery("keyword", "")
 
 	if page < 1 {
 		page = 1
@@ -149,6 +150,10 @@ func GetBlacklist(c *gin.Context) {
 	var total int64
 
 	query := model.DB.Model(&model.User{}).Where("status = ?", common.UserStatusDisabled)
+	// 支持按用户名搜索（脱敏前的原始用户名模糊匹配）
+	if keyword != "" {
+		query = query.Where("username LIKE ? OR display_name LIKE ?", "%"+keyword+"%", "%"+keyword+"%")
+	}
 	query.Count(&total)
 	query.Select("id, username, display_name, email, github_id, discord_id, linux_do_id, wechat_id, telegram_id, oidc_id, remark, banned_at, ban_duration").
 		Order("id desc").
