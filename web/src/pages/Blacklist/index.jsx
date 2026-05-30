@@ -979,10 +979,10 @@ const Blacklist = () => {
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 py-12 px-4">
+        <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 py-6 px-4">
             <div className="max-w-5xl mx-auto">
                 {/* 标题区域 */}
-                <div className="text-center mb-4" style={{ paddingTop: 32 }}>
+                <div className="text-center mb-4">
                     <Title heading={2} className="!text-white mb-2">
                         🔒 {t('小黑屋')}
                     </Title>
