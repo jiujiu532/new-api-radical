@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useState, useEffect } from 'react';
-import { Modal, RadioGroup, Radio, InputNumber, Space, Typography, Input, Tag, Divider, Button } from '@douyinfe/semi-ui';
+import { Modal, InputNumber, Space, Typography, Input, Tag, Divider, Button } from '@douyinfe/semi-ui';
 import { IconPlus } from '@douyinfe/semi-icons';
 
 const { Text } = Typography;
@@ -174,24 +174,28 @@ const EnableDisableUserModal = ({
       {isDisable ? (
         <div>
           {/* 封禁时长选择 */}
-          <Text style={{ marginBottom: 12, display: 'block' }}>
+          <Text style={{ marginBottom: 8, display: 'block' }}>
             {t('选择封禁时长')}：
           </Text>
-          <RadioGroup
-            type='pureCard'
-            direction='vertical'
-            value={banDuration}
-            onChange={(e) => setBanDuration(e.target.value)}
-            style={{ width: '100%' }}
-          >
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 4 }}>
             {BAN_DURATION_OPTIONS.map((opt) => (
-              <Radio key={opt.value} value={opt.value} style={{ marginBottom: 4 }}>
+              <Tag
+                key={opt.value}
+                size="large"
+                color={banDuration === opt.value ? 'blue' : 'white'}
+                type={banDuration === opt.value ? 'light' : 'ghost'}
+                style={{
+                  cursor: 'pointer',
+                  border: banDuration === opt.value ? '1px solid var(--semi-color-primary)' : '1px solid var(--semi-color-border)',
+                }}
+                onClick={() => setBanDuration(opt.value)}
+              >
                 {t(opt.label)}
-              </Radio>
+              </Tag>
             ))}
-          </RadioGroup>
+          </div>
           {banDuration === -1 && (
-            <Space style={{ marginTop: 12 }}>
+            <Space style={{ marginTop: 8 }}>
               <InputNumber
                 min={1}
                 max={525600}
@@ -247,7 +251,7 @@ const EnableDisableUserModal = ({
                 size="large"
                 color="orange"
                 closable
-                onClose={(e) => { e.stopPropagation(); handleDeletePreset(preset); }}
+                onClose={(value, e) => { e.stopPropagation(); handleDeletePreset(preset); return false; }}
                 style={{ cursor: 'pointer' }}
                 onClick={() => handlePresetClick(preset)}
               >

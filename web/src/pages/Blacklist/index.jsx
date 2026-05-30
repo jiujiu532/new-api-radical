@@ -554,7 +554,7 @@ const Blacklist = () => {
             title: t('备注'),
             dataIndex: 'remark',
             render: (text) => (
-                <Text type="tertiary" ellipsis={{ showTooltip: true }}>
+                <Text type={text ? 'warning' : 'tertiary'} ellipsis={{ showTooltip: true }} style={text ? { color: '#d4380d', fontWeight: 500 } : undefined}>
                     {text || t('无')}
                 </Text>
             ),
