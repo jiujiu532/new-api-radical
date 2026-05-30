@@ -982,16 +982,10 @@ const Blacklist = () => {
         <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 py-12 px-4">
             <div className="max-w-5xl mx-auto">
                 {/* 标题区域 */}
-                <div className="text-center mb-8">
-                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-500/20 mb-4">
-                        <IconAlertTriangle size="extra-large" className="text-red-400" />
-                    </div>
+                <div className="text-center mb-4">
                     <Title heading={2} className="!text-white mb-2">
                         🔒 {t('小黑屋')}
                     </Title>
-                    <Text className="text-gray-400">
-                        {t('这里是被封禁用户的名单，如果您被误封，可以使用解封码解封')}
-                    </Text>
                 </div>
 
                 {/* 封禁说明（可编辑） */}
