@@ -960,6 +960,17 @@ const Blacklist = () => {
                     </Text>
                 </div>
 
+                {/* 封禁说明 */}
+                <Card className="mb-6 !bg-gray-800/30 !border-gray-700" bodyStyle={{ padding: '12px 20px' }}>
+                    <ul className="text-gray-400 space-y-1 text-sm" style={{ margin: 0, paddingLeft: 0, listStyle: 'none' }}>
+                        <li>• {t('封禁通常是因为违反了平台使用规则')}</li>
+                        <li>• {t('如果您认为是误封，请联系管理员获取解封码')}</li>
+                        <li>• {t('解封码是一次性的，使用后即失效')}</li>
+                        <li>• {t('多次违规可能导致永久封禁')}</li>
+                        <li>• {t('备注若超过8个字将自动省略，鼠标悬停可查看完整内容')}</li>
+                    </ul>
+                </Card>
+
                 {/* 解封提示卡片 */}
                 <Card
                     className="mb-6 !bg-gradient-to-r from-amber-500/10 to-orange-500/10 !border-amber-500/30"
@@ -1052,18 +1063,6 @@ const Blacklist = () => {
                 </Card>
 
                 {/* 说明卡片 */}
-                <Card className="mt-6 !bg-gray-800/30 !border-gray-700">
-                    <Title heading={5} className="!text-gray-300 mb-3">
-                        ⚠️ {t('关于封禁说明')}
-                    </Title>
-                    <ul className="text-gray-400 space-y-2 text-sm">
-                        <li>• {t('封禁通常是因为违反了平台使用规则')}</li>
-                        <li>• {t('如果您认为是误封，请联系管理员获取解封码')}</li>
-                        <li>• {t('解封码是一次性的，使用后即失效')}</li>
-                        <li>• {t('多次违规可能导致永久封禁')}</li>
-                        <li>• {t('备注若超过8个字将自动省略，鼠标悬停可查看完整内容')}</li>
-                    </ul>
-                </Card>
             </div>
 
             {/* 解封弹窗 */}
