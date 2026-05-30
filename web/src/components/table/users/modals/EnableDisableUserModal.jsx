@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useState, useEffect } from 'react';
 import { Modal, RadioGroup, Radio, InputNumber, Space, Typography, Input, Tag, Divider, Button } from '@douyinfe/semi-ui';
-import { IconClose, IconPlus } from '@douyinfe/semi-icons';
+import { IconPlus } from '@douyinfe/semi-icons';
 
 const { Text } = Typography;
 

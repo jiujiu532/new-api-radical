@@ -209,7 +209,7 @@ const UsersTable = (usersData) => {
 
       <EnableDisableUserModal
         visible={showEnableDisableModal}
-        onCancel={() => setShowEnableDisableModal(false)}
+        onCancel={() => { setShowEnableDisableModal(false); }}
         onConfirm={handleEnableDisableConfirm}
         user={modalUser}
         action={enableDisableAction}
