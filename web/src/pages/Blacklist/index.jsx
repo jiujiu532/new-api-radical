@@ -979,7 +979,7 @@ const Blacklist = () => {
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 py-6 px-4">
+        <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 pt-16 pb-6 px-4">
             <div className="max-w-5xl mx-auto">
                 {/* 标题区域 */}
                 <div className="text-center mb-4">
