@@ -563,11 +563,20 @@ const Blacklist = () => {
         {
             title: t('备注'),
             dataIndex: 'remark',
-            render: (text) => (
-                <Text type={text ? 'warning' : 'tertiary'} ellipsis={{ showTooltip: true }} style={text ? { color: '#d4380d', fontWeight: 500 } : undefined}>
-                    {text || t('无')}
-                </Text>
-            ),
+            width: 150,
+            render: (text) => {
+                if (!text) {
+                    return <Text type="tertiary">{t('无')}</Text>;
+                }
+                const display = text.length > 8 ? text.slice(0, 8) + '...' : text;
+                return (
+                    <Tooltip content={text} position="topLeft">
+                        <Text style={{ color: '#d4380d', fontWeight: 500, cursor: text.length > 8 ? 'pointer' : 'default' }}>
+                            {display}
+                        </Text>
+                    </Tooltip>
+                );
+            },
         },
     ];
 
